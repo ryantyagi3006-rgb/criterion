@@ -7,7 +7,11 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  // Pooled connection, used for normal queries.
+  url       = env("DATABASE_URL")
+  // Direct connection, used for migrations. Running migrations through a
+  // connection pooler fails, so Vercel's unpooled string goes here.
+  directUrl = env("DIRECT_URL")
 }
 
 model User {

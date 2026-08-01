@@ -116,11 +116,16 @@ or export to PDF first.
    `prisma migrate deploy` before `next build`.
 3. Before the first deploy, open **Storage > Create Database > Postgres** and
    attach it to the project. Vercel injects `DATABASE_URL` for you.
-4. Add the remaining environment variables under **Settings > Environment
-   Variables**:
+4. Set four environment variables under **Settings > Environment Variables**:
+   - `DATABASE_URL` — the **pooled** connection string
+   - `DIRECT_URL` — the **unpooled** connection string, used for migrations
    - `AUTH_SECRET` — a long random value, e.g. `openssl rand -base64 32`
    - `GEMINI_API_KEY` — your key from aistudio.google.com/apikey
 5. Deploy. Migrations run automatically as part of the build.
+
+`DIRECT_URL` matters: `prisma migrate deploy` fails through a connection
+pooler, so migrations need the direct endpoint while queries use the pooled
+one.
 
 To create the demo accounts on the deployed database, run once from your
 machine with `DATABASE_URL` pointed at the production database:
