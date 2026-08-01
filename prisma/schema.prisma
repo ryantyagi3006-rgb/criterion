@@ -1,0 +1,102 @@
+// Postgres, because Vercel's filesystem is read-only and ephemeral, so a
+// SQLite file cannot be written to or persisted between requests.
+// Point DATABASE_URL at the same database locally, or at a separate branch.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String       @id @default(cuid())
+  email       String       @unique
+  password    String
+  name        String
+  role        String // "TEACHER" | "STUDENT"
+  createdAt   DateTime     @default(now())
+  assessments Assessment[]
+  attempts    Attempt[]
+}
+
+model Assessment {
+  id              String     @id @default(cuid())
+  title           String
+  subject         String
+  description     String     @default("")
+  instructions    String     @default("")
+  status          String     @default("DRAFT") // DRAFT | PUBLISHED | ARCHIVED
+  mode            String     @default("EXAM") // EXAM | PRACTICE
+  durationMinutes Int?
+  totalMarks      Int        @default(0)
+  sourceFileName  String     @default("")
+  aiConfidence    Float      @default(0)
+  curriculum      String     @default("")
+  dueDate         DateTime?
+  teacher         User       @relation(fields: [teacherId], references: [id])
+  teacherId       String
+  questions       Question[]
+  attempts        Attempt[]
+  createdAt       DateTime   @default(now())
+}
+
+model Question {
+  id           String     @id @default(cuid())
+  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  assessmentId String
+  order        Int
+  number       String // "1", "2a", "3(ii)"
+  section      String     @default("")
+  criteria     String     @default("[]") // JSON: [{criterion: "A", strands: "i, ii"}, ...]
+  diagrams     String     @default("[]") // JSON array of data-URL images cropped from the source
+  stimulus      String    @default("") // long source text the question refers to, e.g. an unseen extract
+  stimulusTitle String    @default("") // e.g. "Extract from The Road by Cormac McCarthy"
+  media         String    @default("[]") // JSON: [{type:"youtube", videoId, title, start}]
+  text         String
+  answerFormat String // mcq | short_text | long_text | math | code | drawing | table
+  options      String     @default("[]") // JSON array for MCQ
+  marks        Int        @default(1)
+  subject      String     @default("")
+  topic        String     @default("")
+  difficulty   String     @default("Medium") // Easy | Medium | Hard
+  estMinutes   Int        @default(3)
+  skills       String     @default("[]") // JSON array
+  tools        String     @default("[]") // JSON array of tool ids
+  rubric       String     @default("")
+  answers      Answer[]
+}
+
+model Attempt {
+  id           String     @id @default(cuid())
+  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  assessmentId String
+  student      User       @relation(fields: [studentId], references: [id])
+  studentId    String
+  status       String     @default("IN_PROGRESS") // IN_PROGRESS | SUBMITTED | MARKED | RELEASED
+  startedAt    DateTime   @default(now())
+  submittedAt  DateTime?
+  totalScore   Float?
+  overallFeedback String  @default("")
+  answers      Answer[]
+
+  @@unique([assessmentId, studentId])
+}
+
+model Answer {
+  id           String   @id @default(cuid())
+  attempt      Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  attemptId    String
+  question     Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  questionId   String
+  content      String   @default("")
+  flagged      Boolean  @default(false)
+  timeSpentSec Int      @default(0)
+  score        Float? // final (teacher-approved) score
+  aiScore      Float?
+  aiFeedback   String   @default("")
+  aiConfidence Float    @default(0)
+
+  @@unique([attemptId, questionId])
+}

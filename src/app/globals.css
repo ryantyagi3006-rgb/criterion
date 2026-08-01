@@ -1,26 +1,88 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --paper: #f4f2ec;
+  --surface: #fdfcf8;
+  --ink: #1d2a32;
+  --soft: #5f6d74;
+  --line: #e2dfd4;
+  --teal: #2e6e7e;
+  --tealdeep: #245966;
+  --tealwash: #e5eeee;
+  --amber: #a16207;
+  --amberwash: #f6ecd9;
+}
+
+.dark {
+  --paper: #0d171f;
+  --surface: #14222c;
+  --ink: #e9e6db;
+  --soft: #8ea0a8;
+  --line: #24363f;
+  --teal: #7ab8c4;
+  --tealdeep: #a3cdd6;
+  --tealwash: #1a323b;
+  --amber: #d4a44c;
+  --amberwash: #2c2415;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-soft: var(--soft);
+  --color-line: var(--line);
+  --color-teal: var(--teal);
+  --color-tealdeep: var(--tealdeep);
+  --color-tealwash: var(--tealwash);
+  --color-amber: var(--amber);
+  --color-amberwash: var(--amberwash);
+  --font-sans: var(--font-inter);
+  --font-serif: var(--font-fraunces);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-inter), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.font-display {
+  font-family: var(--font-fraunces), Georgia, serif;
+}
+
+/* Letterspaced uppercase micro-label, as seen on the reference sites */
+.microlabel {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--soft);
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--soft) 40%, transparent); border-radius: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-up { animation: fade-up 0.4s ease both; }
+
+/* Typewriter cursor */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.animate-blink { animation: blink 1s step-end infinite; }
+
+[contenteditable]:empty:before {
+  content: attr(data-placeholder);
+  color: color-mix(in srgb, var(--soft) 60%, transparent);
+  pointer-events: none;
 }
