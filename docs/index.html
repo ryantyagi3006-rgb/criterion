@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Criterion. MYP assessments, digitised</title>
+<meta name="description" content="Upload an IB MYP task sheet and it becomes a complete digital assessment: every question mapped to its criteria and strands, marked against the rubric, moderated by the teacher." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --paper: #0d171f;
+    --surface: #14222c;
+    --ink: #e9e6db;
+    --soft: #8ea0a8;
+    --line: #24363f;
+    --teal: #7ab8c4;
+    --tealwash: #1a323b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: Inter, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  .display { font-family: Fraunces, Georgia, serif; }
+  .micro {
+    font-size: .65rem; font-weight: 600; letter-spacing: .18em;
+    text-transform: uppercase; color: var(--soft);
+  }
+  a { color: inherit; }
+  /* width:100% is required because auto side margins on a flex child cancel
+     the default stretch, collapsing this to fit-content inside the hero. */
+  .wrap { width: 100%; max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+  /* Hero */
+  #hero { position: relative; min-height: 100svh; display: flex; flex-direction: column; }
+  #halo { position: absolute; inset: 0; z-index: 0; }
+  #hero::after {
+    content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+    background: linear-gradient(to right, var(--paper) 22%, rgba(13,23,31,.75) 55%, transparent 100%);
+  }
+  #hero::before {
+    content: ""; position: absolute; inset: 0 0 auto 0; height: 130px; z-index: 1; pointer-events: none;
+    background: linear-gradient(to bottom, rgba(13,23,31,.92), transparent);
+  }
+  nav, .hero-body { position: relative; z-index: 2; }
+  nav {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 0;
+  }
+  .brand { font-family: Fraunces, serif; font-size: 26px; font-weight: 600; letter-spacing: -.02em; }
+  .brand span { color: var(--teal); }
+  .ghlink {
+    font-size: 15px; text-decoration: underline; text-underline-offset: 3px;
+    opacity: .85; transition: opacity .2s;
+  }
+  .ghlink:hover { opacity: .55; }
+  /* Only vertical padding here, so .wrap's horizontal padding is not
+     overwritten by the shorthand. */
+  .hero-body {
+    flex: 1; display: flex; flex-direction: column; justify-content: center;
+    align-items: flex-start; padding-top: 40px; padding-bottom: 80px;
+  }
+  h1 {
+    font-family: Fraunces, serif; font-weight: 600; letter-spacing: -.02em;
+    font-size: clamp(2.6rem, 7vw, 4.6rem); line-height: 1.06; margin-bottom: 22px;
+    white-space: pre-wrap; min-height: 2.2em;
+  }
+  .cursor {
+    display: inline-block; width: 2px; height: 1.05em; background: var(--ink);
+    vertical-align: middle; margin-left: 3px; animation: blink 1s step-end infinite;
+  }
+  @keyframes blink { 0%,100% { opacity: 1 } 50% { opacity: 0 } }
+  .lede { font-size: clamp(1rem, 2.2vw, 1.2rem); color: var(--soft); max-width: 30rem; line-height: 1.65; }
+  .badge {
+    display: inline-block; border: 1px solid var(--line); border-radius: 999px;
+    padding: 8px 16px; margin-bottom: 26px; align-self: flex-start;
+  }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; }
+  .btn {
+    display: inline-block; border-radius: 10px; padding: 12px 20px;
+    font-size: 15px; font-weight: 600; text-decoration: none; transition: opacity .2s;
+  }
+  .btn:hover { opacity: .82; }
+  .btn-primary { background: var(--teal); color: var(--paper); }
+  .btn-ghost { border: 1px solid var(--line); color: var(--ink); }
+
+  /* Sections */
+  section { padding: 80px 0; border-top: 1px solid var(--line); }
+  h2 { font-family: Fraunces, serif; font-size: clamp(1.6rem, 3.4vw, 2.2rem); font-weight: 600; margin: 8px 0 10px; }
+  .sub { color: var(--soft); max-width: 44rem; line-height: 1.7; }
+
+  .steps { display: grid; gap: 16px; margin-top: 36px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+  .step { border: 1px solid var(--line); border-radius: 14px; padding: 20px; background: var(--surface); }
+  .step .n {
+    display: grid; place-items: center; width: 26px; height: 26px; border-radius: 7px;
+    background: var(--tealwash); color: var(--teal); font-weight: 700; font-size: 13px; margin-bottom: 12px;
+  }
+  .step h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+  .step p { font-size: 14px; color: var(--soft); line-height: 1.6; }
+
+  .crit { display: grid; gap: 12px; margin-top: 32px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  .crit div { border: 1px solid var(--line); border-radius: 12px; padding: 16px; background: var(--surface); }
+  .crit b { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; background: var(--teal); color: var(--paper); font-size: 13px; margin-bottom: 10px; }
+  .crit p { font-size: 13px; color: var(--soft); line-height: 1.5; }
+
+  .grid { display: grid; gap: 14px; margin-top: 32px; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+  .card { border: 1px solid var(--line); border-radius: 14px; padding: 20px; background: var(--surface); }
+  .card h3 { font-size: 15px; font-weight: 600; margin-bottom: 7px; }
+  .card p { font-size: 14px; color: var(--soft); line-height: 1.65; }
+
+  .note {
+    margin-top: 32px; border: 1px solid var(--line); border-left: 3px solid var(--teal);
+    border-radius: 12px; padding: 18px 20px; background: var(--surface);
+  }
+  .note p { color: var(--soft); font-size: 14px; line-height: 1.7; }
+  .note b { color: var(--ink); }
+
+  footer { padding: 40px 0 60px; border-top: 1px solid var(--line); color: var(--soft); font-size: 13px; }
+  @media (prefers-reduced-motion: reduce) { .cursor { animation: none } }
+</style>
+</head>
+<body>
+
+<header id="hero">
+  <div id="halo"></div>
+  <div class="wrap">
+    <nav>
+      <div class="brand">Criterion<span>.</span></div>
+      <a class="ghlink" href="https://github.com/ryantyagi3006-rgb/criterion">View source</a>
+    </nav>
+  </div>
+  <div class="wrap hero-body">
+    <span class="badge micro">For the IB Middle Years Programme</span>
+    <h1 id="type"></h1>
+    <p class="lede">
+      Upload an MYP task sheet and every question comes back mapped to its
+      criteria and strands, with the right tools beside it.
+    </p>
+    <div class="cta">
+      <a class="btn btn-primary" href="https://github.com/ryantyagi3006-rgb/criterion">Read the code</a>
+      <a class="btn btn-ghost" href="#how">How it works</a>
+    </div>
+  </div>
+</header>
+
+<section id="how">
+  <div class="wrap">
+    <p class="micro">The pipeline</p>
+    <h2>One upload, a whole assessment</h2>
+    <p class="sub">
+      A teacher drops in a task sheet. Everything below happens without manual setup,
+      and the teacher reviews all of it before anything reaches a student.
+    </p>
+    <div class="steps">
+      <div class="step"><div class="n">1</div><h3>Read</h3><p>PDFs, Word files, images and scans. Pages are rasterised for layout and the embedded text layer is used for exact wording.</p></div>
+      <div class="step"><div class="n">2</div><h3>Map</h3><p>Every question is tied to the MYP criteria and strands it assesses, with marks, topic, difficulty and estimated time.</p></div>
+      <div class="step"><div class="n">3</div><h3>Equip</h3><p>Calculators, formula sheets, code consoles and drawing canvases appear only on the questions that need them.</p></div>
+      <div class="step"><div class="n">4</div><h3>Mark</h3><p>Answers are marked against the task-specific clarification, with feedback per criterion. Teachers moderate before release.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="micro">Criteria A to D</p>
+    <h2>Built around how MYP is actually assessed</h2>
+    <p class="sub">
+      All eight subject groups are modelled, each with its own criterion names.
+      A question can assess several criteria at once, which most tasks do.
+      Shown here for Mathematics.
+    </p>
+    <div class="crit">
+      <div><b>A</b><p>Knowing and understanding</p></div>
+      <div><b>B</b><p>Investigating patterns</p></div>
+      <div><b>C</b><p>Communicating</p></div>
+      <div><b>D</b><p>Applying mathematics in real-life contexts</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="micro">In the product</p>
+    <h2>What students and teachers get</h2>
+    <div class="grid">
+      <div class="card"><h3>A calm workspace</h3><p>Question navigator, autosave, countdown with auto-submit, flagging, keyboard shortcuts, zoom and full screen, in light or dark.</p></div>
+      <div class="card"><h3>Seven answer formats</h3><p>Multiple choice, short and extended writing, maths working with a symbol palette, a runnable code console, a drawing canvas and data tables.</p></div>
+      <div class="card"><h3>Source texts and video</h3><p>Long unseen extracts are carried across with the questions that reference them, and linked YouTube clips are embedded inline.</p></div>
+      <div class="card"><h3>Diagrams preserved</h3><p>Figures are cropped straight out of the original page, so graphs and labelled drawings survive the conversion intact.</p></div>
+      <div class="card"><h3>Teacher control</h3><p>Every classification, rubric and mark is editable. Nothing reaches a student until it is approved and released.</p></div>
+      <div class="card"><h3>Criterion analytics</h3><p>Achievement per criterion and subject group, with indicative levels out of eight from the marks earned.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="micro">About this page</p>
+    <h2>This is a preview, not the app</h2>
+    <div class="note">
+      <p>
+        <b>GitHub Pages can only serve static files.</b> The working platform needs a Node
+        server for sign-in, uploads and marking, a Postgres database, and a private API key
+        that must never be sent to a browser. None of that can run here, so this page is a
+        showcase of the interface and the source.
+      </p>
+      <p style="margin-top:12px">
+        The full application is deployed separately on Vercel. Everything you see described
+        above is implemented in the repository linked at the top.
+      </p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    Criterion. Built with Next.js, Prisma, Postgres and Gemini Flash.
+    Not affiliated with or endorsed by the International Baccalaureate Organization.
+  </div>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vanta@latest/dist/vanta.halo.min.js"></script>
+<script>
+  // Typewriter, matching the app's login hero.
+  (function () {
+    var text = "task sheets,\ndigitised.";
+    var el = document.getElementById("type");
+    var cursor = document.createElement("span");
+    cursor.className = "cursor";
+    var i = 0;
+    el.appendChild(cursor);
+    setTimeout(function tick() {
+      i++;
+      el.textContent = text.slice(0, i);
+      if (i < text.length) {
+        el.appendChild(cursor);
+        setTimeout(tick, 38);
+      }
+    }, 600);
+  })();
+
+  // Vanta halo. Skipped where WebGL or the CDN is unavailable, leaving the
+  // gradient background, and skipped when reduced motion is requested.
+  (function () {
+    var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce || typeof VANTA === "undefined" || typeof THREE === "undefined") return;
+    try {
+      VANTA.HALO({
+        el: "#halo",
+        mouseControls: true,
+        touchControls: true,
+        gyroControls: false,
+        minHeight: 200.0,
+        minWidth: 200.0,
+        baseColor: 0x0,
+        backgroundColor: 0x0,
+        amplitudeFactor: 3.0,
+        size: 3.0
+      });
+    } catch (e) {}
+  })();
+</script>
+</body>
+</html>

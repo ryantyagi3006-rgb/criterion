@@ -2,10 +2,16 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "assessai",
+      "name": "criterion",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 3000
+    },
+    {
+      "name": "docs-preview",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "3100", "--directory", "docs"],
+      "port": 3100
     }
   ]
 }
