@@ -7,6 +7,13 @@ and moderated by the teacher before release.
 
 All AI features run on the Gemini Flash free tier (`gemini-2.5-flash`).
 
+**[Overview page](https://ryantyagi3006-rgb.github.io/criterion/)** &middot;
+[Deploy your own](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fryantyagi3006-rgb%2Fcriterion&env=DATABASE_URL,DIRECT_URL,AUTH_SECRET,GEMINI_API_KEY&envDescription=Two%20Postgres%20connection%20strings%2C%20a%20session%20secret%20and%20a%20Gemini%20API%20key&project-name=criterion&repository-name=criterion)
+
+The overview page is a static showcase on GitHub Pages. It is not the running
+application: Pages serves static files only, so sign-in, uploads, parsing and marking
+all need the Node server and Postgres described under Deploying to Vercel below.
+
 ## Quick start
 
 Needs a Postgres connection string. The free tier of Vercel Postgres, Neon or
