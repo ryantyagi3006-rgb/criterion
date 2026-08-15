@@ -45,3 +45,7 @@ next-env.d.ts
 *.db
 *.db-journal
 prisma/dev.db*
+
+# iCloud/Finder conflict copies, which have silently reverted files before
+* copy.*
+*\ copy.*
