@@ -57,6 +57,13 @@ export async function PATCH(req: Request, ctx: Ctx) {
           stimulus: q.stimulus ?? "",
           stimulusTitle: q.stimulusTitle ?? "",
           media: JSON.stringify(normaliseMedia(q.media)),
+          // Only inline image data is accepted, so a saved question can never
+          // point at a remote url the server has not vetted.
+          diagrams: JSON.stringify(
+            (Array.isArray(q.diagrams) ? q.diagrams : [])
+              .filter((d: unknown) => typeof d === "string" && /^data:image\/(png|jpeg|webp|gif);base64,/.test(d))
+              .slice(0, 6)
+          ),
           answerFormat: q.answerFormat,
           options: JSON.stringify(q.options ?? []),
           marks: q.marks,

@@ -7,6 +7,7 @@ import { CRITERIA, SUBJECT_GROUP_NAMES, criterionName, parseCriteria } from "@/l
 import CriterionTags from "./CriterionTag";
 import DiagramStrip from "./DiagramStrip";
 import MediaPanel from "./MediaPanel";
+import QuestionImages from "./QuestionImages";
 import { extractVideoId, parseMedia } from "@/lib/youtube";
 
 type Q = {
@@ -32,6 +33,7 @@ function toEditable(q: Q) {
   return {
     ...q,
     optionsArr: JSON.parse(q.options || "[]") as string[],
+    diagramsArr: JSON.parse(q.diagrams || "[]") as string[],
     toolsArr: JSON.parse(q.tools || "[]") as string[],
     criteriaArr: parseCriteria(q.criteria),
     mediaText: media
@@ -112,6 +114,7 @@ export default function AssessmentEditor({
           id: q.id, text: q.text, number: q.number, section: q.section,
           criteria: q.criteriaArr,
           stimulus: q.stimulus, stimulusTitle: q.stimulusTitle,
+          diagrams: q.diagramsArr,
           media: q.mediaText
             .split("\n")
             .map((line) => line.trim())
@@ -249,7 +252,7 @@ export default function AssessmentEditor({
                       <CriterionTags subjectGroup={meta.subject} criteria={q.criteriaArr} />
                     </div>
                     <p className="text-sm text-ink line-clamp-2">{q.text}</p>
-                    <DiagramStrip diagrams={q.diagrams} small />
+                    <DiagramStrip diagrams={JSON.stringify(q.diagramsArr)} small />
                     <MediaPanel media={q.media} compact />
                     <div className="flex flex-wrap gap-1.5 mt-2">
                       {q.section && <Tag>{q.section}</Tag>}
@@ -367,6 +370,19 @@ export default function AssessmentEditor({
                       <span>Task-specific clarification, used for marking</span>
                       <textarea className={input} rows={2} value={q.rubric} onChange={(e) => patchQ(q.id, { rubric: e.target.value })} />
                     </label>
+
+                    <div className="sm:col-span-2 space-y-1">
+                      <span className="microlabel">
+                        Images shown with the question
+                        {q.diagramsArr.length > 0 && (
+                          <span className="normal-case tracking-normal font-normal"> ({q.diagramsArr.length})</span>
+                        )}
+                      </span>
+                      <QuestionImages
+                        images={q.diagramsArr}
+                        onChange={(next) => patchQ(q.id, { diagramsArr: next })}
+                      />
+                    </div>
 
                     <label className="microlabel space-y-1">
                       <span>Source text label</span>
