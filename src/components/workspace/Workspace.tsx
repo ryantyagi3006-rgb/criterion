@@ -7,9 +7,10 @@ import ToolsPanel from "./ToolsPanel";
 import TutorPanel from "./TutorPanel";
 import ThemeToggle from "../ThemeToggle";
 import CriterionTags from "../CriterionTag";
-import DiagramStrip from "../DiagramStrip";
 import StimulusPanel from "../StimulusPanel";
 import MediaPanel from "../MediaPanel";
+import DiagramStrip from "../DiagramStrip";
+import { parseSections, findSection } from "@/lib/sections";
 
 export type WQuestion = {
   id: string; number: string; section: string; criteria: string;
@@ -23,7 +24,7 @@ export type WAttempt = {
   answers: { questionId: string; content: string; flagged: boolean }[];
   assessment: {
     id: string; title: string; subject: string; instructions: string; mode: string;
-    durationMinutes: number | null; totalMarks: number;
+    durationMinutes: number | null; totalMarks: number; sections: string;
     questions: WQuestion[];
   };
 };
@@ -225,7 +226,24 @@ export default function Workspace({ attempt }: { attempt: WAttempt }) {
         {/* Question area */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6" style={{ fontSize: `${zoom}rem` }}>
           <div className="max-w-3xl mx-auto fade-up" key={q.id}>
-            {q.section && <div className="microlabel mb-2">{q.section}</div>}
+            {(() => {
+              const section = findSection(parseSections(assessment.sections), q.section);
+              if (!section && !q.section) return null;
+              // Falls back to the raw label for assessments made before
+              // sections carried their own instructions.
+              if (!section) return <div className="microlabel mb-2">{q.section}</div>;
+              return (
+                <div className="mb-3">
+                  <div className="microlabel mb-1">{section.title || q.section}</div>
+                  {section.instructions.trim() && (
+                    <p className="text-sm text-soft leading-relaxed whitespace-pre-wrap">
+                      {section.instructions}
+                    </p>
+                  )}
+                  <DiagramStrip diagrams={JSON.stringify(section.images)} />
+                </div>
+              );
+            })()}
             <div className="rounded-xl bg-surface border border-line p-5 sm:p-6">
               <div className="flex items-start justify-between gap-3">
                 <div>

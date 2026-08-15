@@ -38,6 +38,9 @@ model Assessment {
   sourceFileName  String     @default("")
   aiConfidence    Float      @default(0)
   curriculum      String     @default("")
+  // JSON: [{key, title, instructions, images: []}]. Question.section holds the
+  // key, so a section can carry its own preamble and figures.
+  sections        String     @default("[]")
   dueDate         DateTime?
   teacher         User       @relation(fields: [teacherId], references: [id])
   teacherId       String

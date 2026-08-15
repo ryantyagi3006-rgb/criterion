@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { normaliseMedia } from "@/lib/youtube";
+import { parseSections, serialiseSections } from "@/lib/sections";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -16,7 +17,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const body = await req.json();
-  const { title, subject, description, instructions, status, mode, durationMinutes, dueDate, questions } = body;
+  const { title, subject, description, instructions, status, mode, durationMinutes, dueDate, questions, sections } = body;
 
   await db.assessment.update({
     where: { id },
@@ -29,6 +30,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
       ...(mode !== undefined && { mode }),
       ...(durationMinutes !== undefined && { durationMinutes: durationMinutes || null }),
       ...(dueDate !== undefined && { dueDate: dueDate ? new Date(dueDate) : null }),
+      ...(sections !== undefined && { sections: serialiseSections(parseSections(JSON.stringify(sections))) }),
     },
   });
 

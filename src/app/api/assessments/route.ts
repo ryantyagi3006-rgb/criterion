@@ -102,6 +102,17 @@ export async function POST(req: Request) {
       durationMinutes: parsed.durationMinutes || null,
       curriculum: parsed.curriculum,
       aiConfidence: parsed.confidence,
+      // Keyed by title, which is what each question's `section` field holds.
+      sections: JSON.stringify(
+        (parsed.sections ?? [])
+          .filter((sec) => sec?.title)
+          .map((sec) => ({
+            key: sec.title,
+            title: sec.title,
+            instructions: sec.instructions ?? "",
+            images: [],
+          }))
+      ),
       sourceFileName: file.name,
       totalMarks,
       mode,

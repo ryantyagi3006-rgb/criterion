@@ -8,6 +8,8 @@ import CriterionTags from "./CriterionTag";
 import DiagramStrip from "./DiagramStrip";
 import MediaPanel from "./MediaPanel";
 import QuestionImages from "./QuestionImages";
+import SectionEditor from "./SectionEditor";
+import { parseSections, withSectionsForQuestions, findSection, type Section } from "@/lib/sections";
 import { extractVideoId, parseMedia } from "@/lib/youtube";
 
 type Q = {
@@ -19,7 +21,7 @@ type Q = {
 type A = {
   id: string; title: string; subject: string; description: string; instructions: string;
   status: string; mode: string; durationMinutes: number | null; totalMarks: number;
-  aiConfidence: number; curriculum: string; sourceFileName: string; dueDate: string | null;
+  aiConfidence: number; curriculum: string; sourceFileName: string; dueDate: string | null; sections: string;
   questions: Q[];
   attempts: { id: string; status: string; totalScore: number | null; student: { name: string } }[];
 };
@@ -59,6 +61,12 @@ export default function AssessmentEditor({
     dueDate: assessment.dueDate ? assessment.dueDate.slice(0, 10) : "",
   });
   const [questions, setQuestions] = useState(assessment.questions.map(toEditable));
+  const [sections, setSections] = useState<Section[]>(() =>
+    withSectionsForQuestions(
+      parseSections(assessment.sections),
+      assessment.questions.map((q) => q.section)
+    )
+  );
   const [openId, setOpenId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
@@ -110,6 +118,7 @@ export default function AssessmentEditor({
         durationMinutes: meta.durationMinutes || null,
         dueDate: meta.dueDate || null,
         ...(status && { status }),
+        sections,
         questions: questions.map((q) => ({
           id: q.id, text: q.text, number: q.number, section: q.section,
           criteria: q.criteriaArr,
@@ -233,6 +242,15 @@ export default function AssessmentEditor({
         </label>
       </div>
 
+      <SectionEditor
+        sections={sections}
+        questionCounts={questions.reduce<Record<string, number>>((acc, q) => {
+          if (q.section) acc[q.section] = (acc[q.section] ?? 0) + 1;
+          return acc;
+        }, {})}
+        onChange={setSections}
+      />
+
       {/* Questions */}
       <section>
         <h2 className="font-display text-2xl font-semibold mb-1 text-ink">Questions</h2>
@@ -255,7 +273,7 @@ export default function AssessmentEditor({
                     <DiagramStrip diagrams={JSON.stringify(q.diagramsArr)} small />
                     <MediaPanel media={q.media} compact />
                     <div className="flex flex-wrap gap-1.5 mt-2">
-                      {q.section && <Tag>{q.section}</Tag>}
+                      {q.section && <Tag>{findSection(sections, q.section)?.title || q.section}</Tag>}
                       <Tag>{q.topic}</Tag>
                       <Tag>{q.difficulty}</Tag>
                       <Tag>{q.marks} mk, ~{q.estMinutes} min</Tag>
@@ -337,9 +355,19 @@ export default function AssessmentEditor({
                         {FORMATS.map((f) => <option key={f} value={f}>{f.replace("_", " ")}</option>)}
                       </select>
                     </label>
-                    <label className="microlabel space-y-1 sm:col-span-2">
+                    <label className="microlabel space-y-1">
                       <span>Topic</span>
                       <input className={input} value={q.topic} onChange={(e) => patchQ(q.id, { topic: e.target.value })} />
+                    </label>
+                    <label className="microlabel space-y-1">
+                      <span>Section</span>
+                      <select className={input} value={q.section}
+                        onChange={(e) => patchQ(q.id, { section: e.target.value })}>
+                        <option value="">No section</option>
+                        {sections.map((sec) => (
+                          <option key={sec.key} value={sec.key}>{sec.title || "Untitled section"}</option>
+                        ))}
+                      </select>
                     </label>
                     {q.answerFormat === "mcq" && (
                       <label className="microlabel space-y-1 sm:col-span-2">

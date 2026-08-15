@@ -71,6 +71,7 @@ export type ParsedQuestion = {
 
 export type ParsedAssessment = {
   title: string;
+  sections?: { title: string; instructions: string }[];
   subject: string;
   description: string;
   instructions: string;
@@ -113,10 +114,12 @@ For each question:
 - rubric: a concise marking guide (use the sheet's task-specific clarification if present, otherwise write one worth the allocated marks, phrased in MYP command-term style)
 - marks: integer marks allocated (default 1 if not stated)
 
-Also return: title, subject (the MYP subject group), description (1 sentence), instructions (general instructions text), durationMinutes (stated or estimated total), curriculum (e.g. "IB MYP Year 4"), confidence (0-1, your parsing confidence).
+SECTIONS: task sheets are usually split into parts, each with its own preamble, for example "Section B: Data analysis. Answer ALL questions. You may use a calculator." Return a "sections" array in document order: {"title": the section heading exactly as printed, "instructions": any wording that applies to that whole section rather than to one question}. Use "" for instructions where a section has none. Each question's "section" field must match one of these titles exactly. If the sheet has no sections, return an empty array and leave every question's section as "".
+
+Also return: title, subject (the MYP subject group), description (1 sentence), instructions (general instructions text that applies to the WHOLE paper, not to one section), durationMinutes (stated or estimated total), curriculum (e.g. "IB MYP Year 4"), confidence (0-1, your parsing confidence).
 
 Return ONLY valid JSON:
-{"title": string, "subject": string, "description": string, "instructions": string, "durationMinutes": number, "curriculum": string, "confidence": number, "questions": [{"number": string, "section": string, "criteria": [{"criterion": string, "strands": string}], "text": string, "answerFormat": string, "options": string[], "marks": number, "subject": string, "topic": string, "difficulty": string, "estMinutes": number, "skills": string[], "tools": string[], "rubric": string, "stimulus": string, "stimulusTitle": string, "media": [{"type": "youtube", "url": string, "videoId": string, "title": string, "start": number}], "diagramBoxes": [{"page": number, "box": [number, number, number, number]}], "diagramImageIndexes": number[]}]}`;
+{"title": string, "subject": string, "description": string, "instructions": string, "durationMinutes": number, "curriculum": string, "confidence": number, "sections": [{"title": string, "instructions": string}], "questions": [{"number": string, "section": string, "criteria": [{"criterion": string, "strands": string}], "text": string, "answerFormat": string, "options": string[], "marks": number, "subject": string, "topic": string, "difficulty": string, "estMinutes": number, "skills": string[], "tools": string[], "rubric": string, "stimulus": string, "stimulusTitle": string, "media": [{"type": "youtube", "url": string, "videoId": string, "title": string, "start": number}], "diagramBoxes": [{"page": number, "box": [number, number, number, number]}], "diagramImageIndexes": number[]}]}`;
 
 function extractJson(text: string) {
   const cleaned = text.replace(/```json|```/g, "").trim();
