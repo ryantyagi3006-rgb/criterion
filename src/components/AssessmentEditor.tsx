@@ -24,6 +24,23 @@ type A = {
 };
 
 const FORMATS = ["mcq", "short_text", "long_text", "math", "code", "drawing", "table"];
+
+// Widens a stored question into the shape the editor edits, unpacking the
+// JSON columns into arrays and the media list into one URL per line.
+function toEditable(q: Q) {
+  const media = parseMedia(q.media);
+  return {
+    ...q,
+    optionsArr: JSON.parse(q.options || "[]") as string[],
+    toolsArr: JSON.parse(q.tools || "[]") as string[],
+    criteriaArr: parseCriteria(q.criteria),
+    mediaText: media
+      .map((m) => `https://www.youtube.com/watch?v=${m.videoId}${m.start ? `&t=${m.start}` : ""}`)
+      .join("\n"),
+    // Titles are not editable as URLs, so keep them to re-attach on save.
+    mediaTitles: Object.fromEntries(media.map((m) => [m.videoId, m.title])),
+  };
+}
 const input = "w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-teal focus:ring-1 focus:ring-teal text-ink";
 
 export default function AssessmentEditor({
@@ -39,26 +56,46 @@ export default function AssessmentEditor({
     mode: assessment.mode, durationMinutes: assessment.durationMinutes ?? 0,
     dueDate: assessment.dueDate ? assessment.dueDate.slice(0, 10) : "",
   });
-  const [questions, setQuestions] = useState(
-    assessment.questions.map((q) => ({
-      ...q,
-      optionsArr: JSON.parse(q.options || "[]") as string[],
-      toolsArr: JSON.parse(q.tools || "[]") as string[],
-      criteriaArr: parseCriteria(q.criteria),
-      // Edited as one URL or id per line, which is far easier than JSON.
-      mediaText: parseMedia(q.media)
-        .map((m) => `https://www.youtube.com/watch?v=${m.videoId}${m.start ? `&t=${m.start}` : ""}`)
-        .join("\n"),
-      // Titles are not editable as URLs, so keep them to re-attach on save.
-      mediaTitles: Object.fromEntries(parseMedia(q.media).map((m) => [m.videoId, m.title])),
-    }))
-  );
+  const [questions, setQuestions] = useState(assessment.questions.map(toEditable));
   const [openId, setOpenId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [pendingQuestion, setPendingQuestion] = useState(false);
 
   function patchQ(id: string, patch: Partial<(typeof questions)[0]>) {
     setQuestions((qs) => qs.map((q) => (q.id === id ? { ...q, ...patch } : q)));
+  }
+
+  // Add and remove hit the server straight away, because a question needs a
+  // real id before the rest of the editor can address it.
+  async function addQuestion() {
+    setPendingQuestion(true);
+    try {
+      const res = await fetch(`/api/assessments/${assessment.id}/questions`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        const added = toEditable(data.question as Q);
+        setQuestions((qs) => [...qs, added]);
+        setOpenId(added.id);
+      }
+    } finally {
+      setPendingQuestion(false);
+    }
+  }
+
+  async function removeQuestion(id: string) {
+    if (questions.length <= 1) return;
+    if (!confirm("Delete this question? Any answers students have already given to it are removed too.")) return;
+    setPendingQuestion(true);
+    try {
+      const res = await fetch(`/api/assessments/${assessment.id}/questions/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setQuestions((qs) => qs.filter((q) => q.id !== id));
+        if (openId === id) setOpenId(null);
+      }
+    } finally {
+      setPendingQuestion(false);
+    }
   }
 
   async function save(status?: string) {
@@ -113,7 +150,9 @@ export default function AssessmentEditor({
           <p className="microlabel mb-1">Review, then publish</p>
           <h1 className="font-display text-3xl font-semibold text-ink">{meta.title}</h1>
           <p className="text-sm text-soft mt-1">
-            Parsed from {assessment.sourceFileName}
+            {assessment.sourceFileName === "written in Criterion"
+              ? "Written by hand"
+              : `Parsed from ${assessment.sourceFileName}`}
             {assessment.curriculum && <> &middot; {assessment.curriculum}</>}
             {assessment.aiConfidence > 0 && <> &middot; parse confidence {(assessment.aiConfidence * 100).toFixed(0)}%</>}
             {assessment.aiConfidence > 0 && assessment.aiConfidence < 0.7 && (
@@ -365,12 +404,33 @@ export default function AssessmentEditor({
                         onChange={(e) => patchQ(q.id, { stimulus: e.target.value })}
                       />
                     </label>
+
+                    <div className="sm:col-span-2 flex justify-end border-t border-line pt-3">
+                      <button
+                        type="button"
+                        onClick={() => removeQuestion(q.id)}
+                        disabled={pendingQuestion || questions.length <= 1}
+                        title={questions.length <= 1 ? "An assessment needs at least one question" : undefined}
+                        className="text-xs font-semibold text-red-600 dark:text-red-400 hover:opacity-70 disabled:opacity-40 transition-opacity"
+                      >
+                        Delete this question
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
             );
           })}
         </div>
+
+        <button
+          type="button"
+          onClick={addQuestion}
+          disabled={pendingQuestion}
+          className="mt-3 w-full rounded-xl border border-dashed border-line hover:border-teal text-sm font-semibold text-soft hover:text-teal py-3 transition-colors disabled:opacity-50"
+        >
+          {pendingQuestion ? "Working" : "Add a question"}
+        </button>
       </section>
 
       {/* Submissions */}

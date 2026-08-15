@@ -5,11 +5,59 @@ import { parseDocument, describeAiError } from "@/lib/gemini";
 
 export const maxDuration = 60; // Hobby plan ceiling; raise to 300 on Pro for very long task sheets
 
-// Upload a task sheet → AI parses it into a draft digital assessment.
+// Defaults for a question a teacher adds by hand. Exported so the
+// add-question route creates rows that look identical to these.
+export const BLANK_QUESTION = {
+  section: "",
+  criteria: JSON.stringify([{ criterion: "A", strands: "" }]),
+  text: "",
+  answerFormat: "short_text",
+  options: "[]",
+  marks: 1,
+  topic: "",
+  difficulty: "Medium",
+  estMinutes: 3,
+  skills: "[]",
+  tools: "[]",
+  rubric: "",
+  stimulus: "",
+  stimulusTitle: "",
+  media: "[]",
+  diagrams: "[]",
+};
+
+// Two ways in: a multipart upload that the AI parses, or a JSON body that
+// creates an empty draft for the teacher to write themselves.
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session || session.role !== "TEACHER")
     return NextResponse.json({ error: "Teacher account required" }, { status: 403 });
+
+  if (req.headers.get("content-type")?.includes("application/json")) {
+    const body = await req.json().catch(() => ({}));
+    const mode = body.mode === "PRACTICE" ? "PRACTICE" : "EXAM";
+    const subject = typeof body.subject === "string" && body.subject ? body.subject : "Mathematics";
+
+    const created = await db.assessment.create({
+      data: {
+        title: typeof body.title === "string" && body.title.trim() ? body.title.trim() : "Untitled assessment",
+        subject,
+        description: "",
+        instructions: "",
+        mode,
+        status: "DRAFT",
+        totalMarks: 1,
+        sourceFileName: "written in Criterion",
+        aiConfidence: 0,
+        curriculum: "",
+        teacherId: session.userId,
+        questions: {
+          create: [{ order: 0, number: "1", subject, ...BLANK_QUESTION }],
+        },
+      },
+    });
+    return NextResponse.json({ id: created.id });
+  }
 
   const form = await req.formData();
   const file = form.get("file") as File | null;

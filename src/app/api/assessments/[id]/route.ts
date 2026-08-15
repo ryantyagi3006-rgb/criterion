@@ -32,8 +32,20 @@ export async function PATCH(req: Request, ctx: Ctx) {
     },
   });
 
-  // Teacher edits to AI-generated question metadata.
+  // Teacher edits to question metadata. Only questions that genuinely belong
+  // to this assessment are touched, so a malformed or stale payload is
+  // rejected rather than throwing from deep inside the update.
   if (Array.isArray(questions)) {
+    const owned = new Set(
+      (await db.question.findMany({ where: { assessmentId: id }, select: { id: true } })).map((q) => q.id)
+    );
+    const unknown = questions.filter((q) => !q?.id || !owned.has(q.id));
+    if (unknown.length)
+      return NextResponse.json(
+        { error: "One or more questions do not belong to this assessment." },
+        { status: 400 }
+      );
+
     for (const q of questions) {
       await db.question.update({
         where: { id: q.id },

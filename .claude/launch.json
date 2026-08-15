@@ -4,14 +4,8 @@
     {
       "name": "criterion",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": ["--prefix", "/Users/ryantyagi/dev/criterion", "run", "dev"],
       "port": 3000
-    },
-    {
-      "name": "docs-preview",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "3100", "--directory", "docs"],
-      "port": 3100
     }
   ]
 }

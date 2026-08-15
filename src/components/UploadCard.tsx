@@ -9,6 +9,7 @@ export default function UploadCard({ aiAvailable }: { aiAvailable: boolean }) {
   const [mode, setMode] = useState<"EXAM" | "PRACTICE">("EXAM");
   const [drag, setDrag] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
   const [retryable, setRetryable] = useState(false);
   const [fileName, setFileName] = useState("");
@@ -109,6 +110,41 @@ export default function UploadCard({ aiAvailable }: { aiAvailable: boolean }) {
       {mode === "PRACTICE" && (
         <p className="mt-3 text-xs text-soft">Practice mode gives students a tutor for hints and worked examples.</p>
       )}
+
+      {/* Writing one by hand, for when there is no sheet to upload. */}
+      <div className="mt-5 pt-4 border-t border-line flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-soft">
+          No task sheet? Write {mode === "PRACTICE" ? "a practice set" : "an assessment"} yourself.
+        </p>
+        <button
+          type="button"
+          disabled={busy || creating}
+          onClick={async () => {
+            setCreating(true);
+            setError("");
+            try {
+              const res = await fetch("/api/assessments", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ mode }),
+              });
+              const data = await res.json();
+              if (!res.ok) {
+                setError(data.error ?? "Could not create the assessment");
+                setCreating(false);
+                return;
+              }
+              router.push(`/assessment/${data.id}/edit`);
+            } catch {
+              setError("Could not reach the server.");
+              setCreating(false);
+            }
+          }}
+          className="shrink-0 rounded-lg border border-teal text-teal hover:bg-tealwash disabled:opacity-50 text-sm font-semibold px-4 py-2 transition-colors"
+        >
+          {creating ? "Creating" : "Start from scratch"}
+        </button>
+      </div>
     </div>
   );
 }
