@@ -1,6 +1,7 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { TOOLS } from "@/lib/tools";
+import GeoGebra from "./GeoGebra";
 
 // Renders only the tools assigned to the current question.
 export default function ToolsPanel({ toolIds }: { toolIds: string[] }) {
@@ -27,7 +28,7 @@ export default function ToolsPanel({ toolIds }: { toolIds: string[] }) {
 function renderTool(id: string) {
   switch (id) {
     case "calculator": return <Calculator />;
-    case "graphing": return <Grapher />;
+    case "graphing": return <GeoGebra appName="graphing" height={420} />;
     case "formula_sheet": return <FormulaSheet />;
     case "periodic_table": return <PeriodicTable />;
     case "unit_converter": return <UnitConverter />;
@@ -116,50 +117,6 @@ function Calculator() {
         <button onClick={eq} className="col-span-3 rounded-lg bg-teal text-paper py-2 text-xs font-bold">=</button>
       </div>
       <p className="text-[10px] text-soft mt-1.5">Trig in radians. Supports sin cos tan log ln sqrt ^ π</p>
-    </div>
-  );
-}
-
-/* ---------- Function grapher ---------- */
-function Grapher() {
-  const [fn, setFn] = useState("x^2");
-  // Derived, not stored. Calling setState from useMemo runs during render and
-  // can cascade, so the error is computed alongside the path instead.
-  const { path, err } = useMemo(() => {
-    try {
-      const pts: string[] = [];
-      for (let px = 0; px <= 260; px += 2) {
-        const x = (px - 130) / 13;
-        const y = evaluate(fn.replace(/x/g, `(${x.toFixed(4)})`));
-        if (!isFinite(y)) continue;
-        const py = 130 - y * 13;
-        if (py < -500 || py > 700) continue;
-        pts.push(`${pts.length ? "L" : "M"}${px},${py.toFixed(1)}`);
-      }
-      return { path: pts.join(" "), err: "" };
-    } catch {
-      return { path: "", err: "Cannot plot that. Try x^2, sin(x), 2*x+1" };
-    }
-  }, [fn]);
-
-  return (
-    <div>
-      <div className="flex gap-1 mb-2">
-        <span className="text-sm text-soft self-center font-mono">y =</span>
-        <input value={fn} onChange={(e) => setFn(e.target.value)}
-          className="flex-1 rounded-lg border border-line bg-paper px-2 py-1 text-sm font-mono outline-none text-ink" aria-label="Function to plot" />
-      </div>
-      <svg viewBox="0 0 260 260" className="w-full rounded-lg bg-paper border border-line">
-        {Array.from({ length: 21 }, (_, i) => (
-          <g key={i} stroke="var(--line)" strokeWidth={i === 10 ? 1.5 : 0.5}>
-            <line x1={i * 13} y1={0} x2={i * 13} y2={260} stroke={i === 10 ? "var(--soft)" : "var(--line)"} />
-            <line x1={0} y1={i * 13} x2={260} y2={i * 13} stroke={i === 10 ? "var(--soft)" : "var(--line)"} />
-          </g>
-        ))}
-        {path && <path d={path} fill="none" stroke="var(--teal)" strokeWidth="2" />}
-      </svg>
-      {err && <p className="text-[10px] text-amber mt-1">{err}</p>}
-      <p className="text-[10px] text-soft mt-1">Axes from -10 to 10</p>
     </div>
   );
 }

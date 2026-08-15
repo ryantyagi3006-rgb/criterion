@@ -2,6 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { renderPages, cropDiagram, docxToParts, DOCX_MIME } from "./pages";
 import { findVideoIds, normaliseMedia, type MediaItem } from "./youtube";
 import { isRetryable, statusOf } from "./ai-errors";
+import { richTextToPlain } from "./richtext";
 
 export { describeAiError, type AiErrorInfo } from "./ai-errors";
 
@@ -280,7 +281,12 @@ export async function markAttempt(
     maxMarks: q.marks,
     rubric: q.rubric,
     format: q.answerFormat,
-    studentAnswer: answers[q.id] ?? "(no answer given)",
+    // Extended responses are stored with formatting markup. Marking is about
+    // the prose, so the tags are flattened rather than fed to the model.
+    studentAnswer:
+      (q.answerFormat === "long_text"
+        ? richTextToPlain(answers[q.id] ?? "")
+        : answers[q.id]) || "(no answer given)",
   }));
 
   const prompt = `You are a fair, rigorous IB MYP examiner marking a student submission. Each question is mapped to one or more MYP criteria (A to D), given as a JSON list with strands. For each question, compare the student's answer against the marking rubric and allocate marks (0 to maxMarks, halves allowed). Explain WHY marks were awarded or withheld using MYP command-term language, identify missing steps and misconceptions, and give one constructive improvement tip. Note: "drawing" answers are image data; if the answer content starts with "data:image" treat it as attempted and mark generously on effort unless clearly blank. Also provide overall feedback: strengths and weaknesses organised by criterion, plus 2-3 revision suggestions. Write all feedback in short, plain sentences. Never use em dashes or emojis.

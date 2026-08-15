@@ -1,6 +1,19 @@
+import { sanitizeRichText } from "@/lib/richtext";
+
 /* Renders a stored answer for results and review views. */
 export default function AnswerDisplay({ format, content }: { format: string; content: string }) {
   if (!content.trim()) return <p className="text-sm italic text-soft">No answer given</p>;
+
+  // Extended responses carry bold, italic and underline. This is student input
+  // being shown to a teacher, so it is reduced to a formatting-only allowlist
+  // with every attribute stripped before rendering.
+  if (format === "long_text")
+    return (
+      <div
+        className="text-sm text-ink leading-relaxed whitespace-pre-wrap [&_u]:underline [&_b]:font-semibold [&_strong]:font-semibold"
+        dangerouslySetInnerHTML={{ __html: sanitizeRichText(content) }}
+      />
+    );
 
   if (format === "drawing" && content.startsWith("data:image"))
     // eslint-disable-next-line @next/next/no-img-element
