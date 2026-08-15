@@ -49,7 +49,7 @@ async function generateWithRetry(
 export type ParsedQuestion = {
   number: string;
   section: string;
-  criteria: { criterion: string; strands: string }[];
+  criteria: { criterion: string; strands: string; marks: number }[];
   text: string;
   answerFormat: "mcq" | "short_text" | "long_text" | "math" | "code" | "drawing" | "table";
   options: string[];
@@ -103,7 +103,7 @@ This platform is built for the IB Middle Years Programme (MYP). Classify the ass
 Every MYP subject group is assessed through four criteria, A to D. For example Mathematics: A Knowing and understanding, B Investigating patterns, C Communicating, D Applying mathematics in real-life contexts. Sciences: A Knowing and understanding, B Inquiring and designing, C Processing and evaluating, D Reflecting on the impacts of science.
 
 For each question:
-- criteria: an array, because one question often assesses SEVERAL criteria at once. Each entry is {"criterion": "A"|"B"|"C"|"D", "strands": "i, ii" or ""}. If the task sheet states the criteria (for example "Criterion B" or "Criteria A and C" or "[Crit B i-ii, Crit C i]"), use exactly those. Otherwise infer the best fit; include every criterion the question genuinely assesses, and never leave the array empty.
+- criteria: an array, because one question often assesses SEVERAL criteria at once. Each entry is {"criterion": "A"|"B"|"C"|"D", "strands": "i, ii" or "", "marks": the marks awarded under THAT criterion}. The criterion marks must add up to the marks for that question. Where the sheet states a split, for example "[4 marks: A2, C2]", use it exactly. Where it gives only a total for a question covering several criteria, divide it sensibly and never leave a criterion on zero. If the task sheet states the criteria (for example "Criterion B" or "Criteria A and C" or "[Crit B i-ii, Crit C i]"), use exactly those. Otherwise infer the best fit; include every criterion the question genuinely assesses, and never leave the array empty.
 - answerFormat: one of "mcq" (include options array), "short_text", "long_text" (extended response), "math" (working plus numeric or symbolic answer), "code" (programming), "drawing" (sketches or graphs to draw), "table" (data tables)
 - subject: the MYP subject group name
 - topic: specific topic, e.g. Linear relationships, Ecosystems, Poetry analysis
@@ -119,7 +119,7 @@ SECTIONS: task sheets are usually split into parts, each with its own preamble, 
 Also return: title, subject (the MYP subject group), description (1 sentence), instructions (general instructions text that applies to the WHOLE paper, not to one section), durationMinutes (stated or estimated total), curriculum (e.g. "IB MYP Year 4"), confidence (0-1, your parsing confidence).
 
 Return ONLY valid JSON:
-{"title": string, "subject": string, "description": string, "instructions": string, "durationMinutes": number, "curriculum": string, "confidence": number, "sections": [{"title": string, "instructions": string}], "questions": [{"number": string, "section": string, "criteria": [{"criterion": string, "strands": string}], "text": string, "answerFormat": string, "options": string[], "marks": number, "subject": string, "topic": string, "difficulty": string, "estMinutes": number, "skills": string[], "tools": string[], "rubric": string, "stimulus": string, "stimulusTitle": string, "media": [{"type": "youtube", "url": string, "videoId": string, "title": string, "start": number}], "diagramBoxes": [{"page": number, "box": [number, number, number, number]}], "diagramImageIndexes": number[]}]}`;
+{"title": string, "subject": string, "description": string, "instructions": string, "durationMinutes": number, "curriculum": string, "confidence": number, "sections": [{"title": string, "instructions": string}], "questions": [{"number": string, "section": string, "criteria": [{"criterion": string, "strands": string, "marks": number}], "text": string, "answerFormat": string, "options": string[], "marks": number, "subject": string, "topic": string, "difficulty": string, "estMinutes": number, "skills": string[], "tools": string[], "rubric": string, "stimulus": string, "stimulusTitle": string, "media": [{"type": "youtube", "url": string, "videoId": string, "title": string, "start": number}], "diagramBoxes": [{"page": number, "box": [number, number, number, number]}], "diagramImageIndexes": number[]}]}`;
 
 function extractJson(text: string) {
   const cleaned = text.replace(/```json|```/g, "").trim();
@@ -188,26 +188,45 @@ export async function parseDocument(
     config: { responseMimeType: "application/json", temperature: 0.2 },
   });
   const parsed = extractJson(res.text ?? "") as ParsedAssessment;
-  parsed.questions = (parsed.questions ?? []).map((q, i) => ({
-    ...q,
-    number: q.number || String(i + 1),
-    criteria: (() => {
+  parsed.questions = (parsed.questions ?? []).map((q, i) => {
+    const questionMarks = Math.max(1, Math.round(q.marks || 1));
+
+    const criteria = (() => {
       const list = (q.criteria ?? [])
         .filter((c) => ["A", "B", "C", "D"].includes(c?.criterion))
-        .map((c) => ({ criterion: c.criterion, strands: c.strands ?? "" }));
-      return list.length ? list : [{ criterion: "A", strands: "" }];
-    })(),
+        .map((c) => ({
+          criterion: c.criterion,
+          strands: c.strands ?? "",
+          marks: Math.max(0, Math.round(Number(c.marks) || 0)),
+        }));
+      if (!list.length) return [{ criterion: "A", strands: "", marks: questionMarks }];
+      // The model sometimes names the criteria without splitting the marks.
+      // Spread the question total rather than leaving every criterion on zero.
+      if (list.every((c) => c.marks === 0)) {
+        const each = Math.floor(questionMarks / list.length);
+        const remainder = questionMarks - each * list.length;
+        return list.map((c, index) => ({ ...c, marks: each + (index === 0 ? remainder : 0) }));
+      }
+      return list;
+    })();
+
+    return {
+    ...q,
+    number: q.number || String(i + 1),
+    criteria,
     options: q.options ?? [],
     skills: q.skills ?? [],
     tools: q.tools ?? [],
-    marks: Math.max(1, Math.round(q.marks || 1)),
+    // The question is worth whatever its criteria add up to.
+    marks: criteria.reduce((sum, c) => sum + c.marks, 0) || questionMarks,
     stimulus: typeof q.stimulus === "string" ? q.stimulus : "",
     stimulusTitle: typeof q.stimulusTitle === "string" ? q.stimulusTitle : "",
     // Drop anything that is not a real 11 character YouTube id, so a bad OCR
     // read can never become an iframe pointing at an unrelated video.
     media: normaliseMedia(q.media),
     diagrams: [],
-  }));
+    };
+  });
 
   // Safety net: if the document clearly links a video but the model attached it
   // to no question, put it on the first question that mentions watching.
@@ -344,7 +363,7 @@ function demoParse(fileName: string): ParsedAssessment {
     confidence: 0,
     questions: [
       {
-        number: "1", section: "Section A", criteria: [{ criterion: "A", strands: "i" }],
+        number: "1", section: "Section A", criteria: [{ criterion: "A", strands: "i", marks: 1 }],
         text: "Solve for x:  3x + 7 = 22",
         answerFormat: "mcq", options: ["x = 3", "x = 5", "x = 7", "x = 15"],
         marks: 1, subject: "Mathematics", topic: "Algebra", difficulty: "Easy",
@@ -353,7 +372,7 @@ function demoParse(fileName: string): ParsedAssessment {
         stimulus: "", stimulusTitle: "", media: [], diagrams: [],
       },
       {
-        number: "2", section: "Section A", criteria: [{ criterion: "A", strands: "i, ii" }],
+        number: "2", section: "Section A", criteria: [{ criterion: "A", strands: "i, ii", marks: 3 }],
         text: "A ladder leans against a wall reaching 4 m up, with its base 3 m from the wall. Find the length of the ladder, showing your working.",
         answerFormat: "math", options: [], marks: 3, subject: "Mathematics",
         topic: "Pythagoras", difficulty: "Medium", estMinutes: 4,
@@ -362,7 +381,7 @@ function demoParse(fileName: string): ParsedAssessment {
         stimulus: "", stimulusTitle: "", media: [], diagrams: [],
       },
       {
-        number: "3", section: "Section B", criteria: [{ criterion: "C", strands: "i, iii" }, { criterion: "A", strands: "i" }],
+        number: "3", section: "Section B", criteria: [{ criterion: "C", strands: "i, iii", marks: 3 }, { criterion: "A", strands: "i", marks: 1 }],
         text: "Explain, in a short paragraph, the difference between the mean and the median, and give an example where the median better represents a data set.",
         answerFormat: "long_text", options: [], marks: 4, subject: "Mathematics",
         topic: "Statistics", difficulty: "Medium", estMinutes: 6,

@@ -29,6 +29,7 @@ export default function CriterionTags({
                 Criterion {c.criterion}
                 {name ? `: ${name}` : ""}
                 {c.strands ? ` (strands ${c.strands})` : ""}
+                {c.marks > 0 ? `, ${c.marks} mark${c.marks === 1 ? "" : "s"}` : ""}
               </span>
             )}
           </span>

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { CRITERIA, criterionName, indicativeLevel, parseCriteria } from "@/lib/myp";
+import { CRITERIA, criterionName, indicativeLevel, parseCriteria, ensureCriterionMarks, marksForCriterion } from "@/lib/myp";
 import Shell from "@/components/Shell";
 import AnswerDisplay from "@/components/AnswerDisplay";
 import CriterionTags from "@/components/CriterionTag";
@@ -33,12 +33,20 @@ export default async function ResultsPage({ params }: { params: Promise<{ id: st
   // Criterion breakdown for the released result. A question contributes its
   // marks to every criterion it assesses.
   const critRows = CRITERIA.map((c) => {
-    const qs = assessment.questions.filter((q) => parseCriteria(q.criteria).some((x) => x.criterion === c));
-    const max = qs.reduce((s, q) => s + q.marks, 0);
-    const earned = qs.reduce((s, q) => {
+    // Only the marks assigned to this criterion count toward it, and a
+    // student's score on a split question is shared out in the same ratio.
+    let max = 0;
+    let earned = 0;
+    for (const q of assessment.questions) {
+      const criteria = ensureCriterionMarks(parseCriteria(q.criteria), q.marks);
+      const share = marksForCriterion(criteria, c);
+      if (share <= 0) continue;
+      const questionTotal = criteria.reduce((sum, x) => sum + x.marks, 0) || q.marks;
       const a = answerFor(q.id);
-      return s + (a?.score ?? a?.aiScore ?? 0);
-    }, 0);
+      const scored = a?.score ?? a?.aiScore ?? 0;
+      max += share;
+      earned += questionTotal > 0 ? (scored * share) / questionTotal : 0;
+    }
     return { criterion: c, max, earned, level: indicativeLevel(earned, max) };
   }).filter((r) => r.max > 0);
 

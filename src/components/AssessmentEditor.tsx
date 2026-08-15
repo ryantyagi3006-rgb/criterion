@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { TOOLS } from "@/lib/tools";
-import { CRITERIA, SUBJECT_GROUP_NAMES, criterionName, parseCriteria } from "@/lib/myp";
+import { CRITERIA, SUBJECT_GROUP_NAMES, criterionName, parseCriteria, ensureCriterionMarks, criteriaTotal, marksForCriterion } from "@/lib/myp";
 import CriterionTags from "./CriterionTag";
 import DiagramStrip from "./DiagramStrip";
 import MediaPanel from "./MediaPanel";
@@ -37,7 +37,7 @@ function toEditable(q: Q) {
     optionsArr: JSON.parse(q.options || "[]") as string[],
     diagramsArr: JSON.parse(q.diagrams || "[]") as string[],
     toolsArr: JSON.parse(q.tools || "[]") as string[],
-    criteriaArr: parseCriteria(q.criteria),
+    criteriaArr: ensureCriterionMarks(parseCriteria(q.criteria), q.marks),
     mediaText: media
       .map((m) => `https://www.youtube.com/watch?v=${m.videoId}${m.start ? `&t=${m.start}` : ""}`)
       .join("\n"),
@@ -132,7 +132,7 @@ export default function AssessmentEditor({
               const videoId = extractVideoId(url) ?? "";
               return { type: "youtube", url, videoId, title: q.mediaTitles[videoId] ?? "", start: 0 };
             }),
-          answerFormat: q.answerFormat, options: q.optionsArr, marks: q.marks,
+          answerFormat: q.answerFormat, options: q.optionsArr, marks: criteriaTotal(q.criteriaArr),
           subject: meta.subject, topic: q.topic, difficulty: q.difficulty,
           estMinutes: q.estMinutes, tools: q.toolsArr, rubric: q.rubric,
         })),
@@ -144,15 +144,14 @@ export default function AssessmentEditor({
     router.refresh();
   }
 
-  const totalMarks = questions.reduce((s, q) => s + q.marks, 0);
+  const totalMarks = questions.reduce((s, q) => s + criteriaTotal(q.criteriaArr), 0);
 
   // Marks distribution across criteria, shown like a task sheet cover page.
-  // A question's marks count toward every criterion it assesses.
+  // Each question contributes only the marks set against that criterion, so
+  // a question split across two criteria is no longer counted twice.
   const critTotals = CRITERIA.map((c) => ({
     criterion: c,
-    marks: questions
-      .filter((q) => q.criteriaArr.some((x) => x.criterion === c))
-      .reduce((s, q) => s + q.marks, 0),
+    marks: questions.reduce((s, q) => s + marksForCriterion(q.criteriaArr, c), 0),
   }));
 
   return (
@@ -299,10 +298,13 @@ export default function AssessmentEditor({
                         <span>Number</span>
                         <input className={input} value={q.number} onChange={(e) => patchQ(q.id, { number: e.target.value })} />
                       </label>
-                      <label className="microlabel space-y-1">
+                      <div className="microlabel space-y-1">
                         <span>Marks</span>
-                        <input className={input} type="number" min={1} value={q.marks} onChange={(e) => patchQ(q.id, { marks: +e.target.value || 1 })} />
-                      </label>
+                        <div className={`${input} flex items-center justify-between`} title="Sum of the marks set against each criterion below">
+                          <span className="font-semibold text-ink">{criteriaTotal(q.criteriaArr)}</span>
+                          <span className="text-[10px] text-soft normal-case tracking-normal">from criteria</span>
+                        </div>
+                      </div>
                       <label className="microlabel space-y-1">
                         <span>Difficulty</span>
                         <select className={input} value={q.difficulty} onChange={(e) => patchQ(q.id, { difficulty: e.target.value })}>
@@ -323,7 +325,7 @@ export default function AssessmentEditor({
                                 onClick={() => patchQ(q.id, {
                                   criteriaArr: active
                                     ? q.criteriaArr.filter((x) => x.criterion !== c)
-                                    : [...q.criteriaArr, { criterion: c, strands: "" }].sort((a, b) => a.criterion.localeCompare(b.criterion)),
+                                    : [...q.criteriaArr, { criterion: c, strands: "", marks: 1 }].sort((a, b) => a.criterion.localeCompare(b.criterion)),
                                 })}
                                 className="flex items-center gap-2 text-left flex-1 min-w-0">
                                 <span className={`grid place-items-center w-6 h-6 rounded text-xs font-bold shrink-0 ${
@@ -335,12 +337,27 @@ export default function AssessmentEditor({
                               </button>
                               {active && (
                                 <input
-                                  className="w-20 rounded-md border border-line bg-surface px-2 py-1 text-xs outline-none focus:border-teal text-ink"
+                                  className="w-16 rounded-md border border-line bg-surface px-2 py-1 text-xs outline-none focus:border-teal text-ink"
                                   placeholder="strands"
                                   aria-label={`Strands for criterion ${c}`}
                                   value={active.strands}
                                   onChange={(e) => patchQ(q.id, {
                                     criteriaArr: q.criteriaArr.map((x) => x.criterion === c ? { ...x, strands: e.target.value } : x),
+                                  })}
+                                />
+                              )}
+                              {active && (
+                                <input
+                                  type="number"
+                                  min={0}
+                                  className="w-14 rounded-md border border-line bg-surface px-2 py-1 text-xs text-right outline-none focus:border-teal text-ink"
+                                  aria-label={`Marks for criterion ${c}`}
+                                  title={`Marks awarded under criterion ${c}`}
+                                  value={active.marks}
+                                  onChange={(e) => patchQ(q.id, {
+                                    criteriaArr: q.criteriaArr.map((x) =>
+                                      x.criterion === c ? { ...x, marks: Math.max(0, Math.round(+e.target.value || 0)) } : x
+                                    ),
                                   })}
                                 />
                               )}

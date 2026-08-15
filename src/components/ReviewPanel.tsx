@@ -6,7 +6,7 @@ import CriterionTags from "./CriterionTag";
 import DiagramStrip from "./DiagramStrip";
 import StimulusPanel from "./StimulusPanel";
 import MediaPanel from "./MediaPanel";
-import { CRITERIA, indicativeLevel, parseCriteria } from "@/lib/myp";
+import { CRITERIA, indicativeLevel, parseCriteria, ensureCriterionMarks, marksForCriterion } from "@/lib/myp";
 import { formatDateTime } from "@/lib/dates";
 
 type Props = {
@@ -52,9 +52,18 @@ export default function ReviewPanel({ attempt }: Props) {
   const released = attempt.status === "RELEASED";
 
   const critRows = CRITERIA.map((c) => {
-    const qs = assessment.questions.filter((q) => parseCriteria(q.criteria).some((x) => x.criterion === c));
-    const max = qs.reduce((s, q) => s + q.marks, 0);
-    const earned = qs.reduce((s, q) => s + (scores[q.id] || 0), 0);
+    // Marks count only toward the criterion they were assigned to, and a
+    // score on a split question is shared out in the same ratio.
+    let max = 0;
+    let earned = 0;
+    for (const q of assessment.questions) {
+      const criteria = ensureCriterionMarks(parseCriteria(q.criteria), q.marks);
+      const share = marksForCriterion(criteria, c);
+      if (share <= 0) continue;
+      const questionTotal = criteria.reduce((sum, x) => sum + x.marks, 0) || q.marks;
+      max += share;
+      earned += questionTotal > 0 ? ((scores[q.id] || 0) * share) / questionTotal : 0;
+    }
     return { criterion: c, max, earned, level: indicativeLevel(earned, max) };
   }).filter((r) => r.max > 0);
 

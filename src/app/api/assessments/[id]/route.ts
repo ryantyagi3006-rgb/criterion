@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { normaliseMedia } from "@/lib/youtube";
 import { parseSections, serialiseSections } from "@/lib/sections";
+import { parseCriteria, criteriaTotal } from "@/lib/myp";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -49,6 +50,11 @@ export async function PATCH(req: Request, ctx: Ctx) {
       );
 
     for (const q of questions) {
+      // A question is worth exactly what its criteria add up to, so the two
+      // can never drift apart no matter what the client sends.
+      const criteria = parseCriteria(JSON.stringify(q.criteria ?? []));
+      const derivedMarks = criteriaTotal(criteria);
+
       await db.question.update({
         where: { id: q.id },
         data: {
@@ -68,7 +74,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
           ),
           answerFormat: q.answerFormat,
           options: JSON.stringify(q.options ?? []),
-          marks: q.marks,
+          marks: derivedMarks > 0 ? derivedMarks : q.marks,
           subject: q.subject,
           topic: q.topic,
           difficulty: q.difficulty,
