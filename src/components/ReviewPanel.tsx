@@ -6,7 +6,8 @@ import CriterionTags from "./CriterionTag";
 import DiagramStrip from "./DiagramStrip";
 import StimulusPanel from "./StimulusPanel";
 import MediaPanel from "./MediaPanel";
-import { CRITERIA, indicativeLevel, parseCriteria, ensureCriterionMarks, marksForCriterion } from "@/lib/myp";
+import { CRITERIA, criterionName, indicativeLevel, parseCriteria, ensureCriterionMarks, marksForCriterion } from "@/lib/myp";
+import { effectiveScores, parseScores, scoresTotal, type CriterionScores } from "@/lib/scores";
 import { formatDateTime } from "@/lib/dates";
 
 type Props = {
@@ -16,6 +17,7 @@ type Props = {
     answers: {
       questionId: string; content: string; timeSpentSec: number;
       score: number | null; aiScore: number | null; aiFeedback: string; aiConfidence: number;
+      criterionScores: string; aiCriterionScores: string;
     }[];
     assessment: {
       title: string; subject: string; totalMarks: number;
@@ -32,11 +34,20 @@ type Props = {
 export default function ReviewPanel({ attempt }: Props) {
   const router = useRouter();
   const { assessment, student } = attempt;
-  const [scores, setScores] = useState<Record<string, number>>(() =>
+  // Marks are held per question per criterion. Answers marked before this
+  // existed fall back to sharing their single total in the marks ratio.
+  const criteriaFor = (q: (typeof assessment.questions)[number]) =>
+    ensureCriterionMarks(parseCriteria(q.criteria), q.marks);
+
+  const [scores, setScores] = useState<Record<string, CriterionScores>>(() =>
     Object.fromEntries(
       assessment.questions.map((q) => {
         const a = attempt.answers.find((x) => x.questionId === q.id);
-        return [q.id, a?.score ?? a?.aiScore ?? 0];
+        const criteria = criteriaFor(q);
+        const stored = a?.criterionScores ?? "{}";
+        const aiStored = a?.aiCriterionScores ?? "{}";
+        const source = Object.keys(parseScores(stored)).length ? stored : aiStored;
+        return [q.id, effectiveScores(source, a?.score ?? a?.aiScore ?? 0, criteria)];
       })
     )
   );
@@ -48,21 +59,19 @@ export default function ReviewPanel({ attempt }: Props) {
   const [overall, setOverall] = useState(attempt.overallFeedback);
   const [busy, setBusy] = useState(false);
 
-  const total = Object.values(scores).reduce((s, v) => s + (v || 0), 0);
+  const total = Object.values(scores).reduce((sum, byCriterion) => sum + scoresTotal(byCriterion), 0);
   const released = attempt.status === "RELEASED";
 
+  // Each criterion's grade is the marks actually awarded under it, summed
+  // across the questions that assess it.
   const critRows = CRITERIA.map((c) => {
-    // Marks count only toward the criterion they were assigned to, and a
-    // score on a split question is shared out in the same ratio.
     let max = 0;
     let earned = 0;
     for (const q of assessment.questions) {
-      const criteria = ensureCriterionMarks(parseCriteria(q.criteria), q.marks);
-      const share = marksForCriterion(criteria, c);
+      const share = marksForCriterion(criteriaFor(q), c);
       if (share <= 0) continue;
-      const questionTotal = criteria.reduce((sum, x) => sum + x.marks, 0) || q.marks;
       max += share;
-      earned += questionTotal > 0 ? ((scores[q.id] || 0) * share) / questionTotal : 0;
+      earned += scores[q.id]?.[c] ?? 0;
     }
     return { criterion: c, max, earned, level: indicativeLevel(earned, max) };
   }).filter((r) => r.max > 0);
@@ -80,7 +89,9 @@ export default function ReviewPanel({ attempt }: Props) {
 
   function payloadScores() {
     return assessment.questions.map((q) => ({
-      questionId: q.id, score: scores[q.id] || 0, feedback: feedbacks[q.id],
+      questionId: q.id,
+      criterionScores: scores[q.id] ?? {},
+      feedback: feedbacks[q.id],
     }));
   }
 
@@ -156,14 +167,42 @@ export default function ReviewPanel({ attempt }: Props) {
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-1 shrink-0">
-                <input
-                  type="number" min={0} max={q.marks} step={0.5} value={scores[q.id]}
-                  onChange={(e) => setScores((s) => ({ ...s, [q.id]: Math.min(q.marks, Math.max(0, +e.target.value)) }))}
-                  className={`${input} w-16 px-2 py-1 text-sm text-right font-bold`}
-                  aria-label={`Score for question ${q.number}`}
-                />
-                <span className="text-sm text-soft">/{q.marks}</span>
+              <div className="flex flex-col items-end gap-1.5 shrink-0">
+                <div className="flex flex-wrap justify-end gap-1.5">
+                  {criteriaFor(q).map((c) => (
+                    <label
+                      key={c.criterion}
+                      className="flex items-center gap-1 rounded-lg border border-line bg-paper px-2 py-1"
+                      title={`${criterionName(assessment.subject, c.criterion)}, out of ${c.marks}`}
+                    >
+                      <span className="grid place-items-center w-5 h-5 rounded bg-teal text-paper text-[11px] font-bold">
+                        {c.criterion}
+                      </span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={c.marks}
+                        step={0.5}
+                        value={scores[q.id]?.[c.criterion] ?? 0}
+                        onChange={(e) =>
+                          setScores((prev) => ({
+                            ...prev,
+                            [q.id]: {
+                              ...prev[q.id],
+                              [c.criterion]: Math.min(c.marks, Math.max(0, +e.target.value || 0)),
+                            },
+                          }))
+                        }
+                        className="w-12 bg-transparent text-sm text-right font-bold outline-none text-ink"
+                        aria-label={`Marks for criterion ${c.criterion} on question ${q.number}`}
+                      />
+                      <span className="text-xs text-soft">/{c.marks}</span>
+                    </label>
+                  ))}
+                </div>
+                <span className="text-xs text-soft">
+                  {scoresTotal(scores[q.id] ?? {})}/{q.marks} total
+                </span>
               </div>
             </div>
             <p className="mt-3 text-sm text-ink whitespace-pre-wrap leading-relaxed">{q.text}</p>

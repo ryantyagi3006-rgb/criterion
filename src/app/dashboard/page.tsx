@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { aiAvailable } from "@/lib/gemini";
-import { criterionName, indicativeLevel, parseCriteria } from "@/lib/myp";
+import { criterionName, indicativeLevel, parseCriteria, ensureCriterionMarks } from "@/lib/myp";
+import { effectiveScores } from "@/lib/scores";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import Shell from "@/components/Shell";
 import UploadCard from "@/components/UploadCard";
@@ -144,14 +145,23 @@ async function StudentDashboard({ userId, name }: { userId: string; name: string
   const done = attempts.filter((t) => t.status !== "IN_PROGRESS");
 
   // Criterion achievement per subject group, from released results.
+  // Each criterion counts only the marks available under it and the marks
+  // actually awarded there, so a question spanning two criteria is not
+  // counted at full value against both.
   const critStats = new Map<string, { earned: number; max: number }>();
   for (const t of done.filter((d) => d.status === "RELEASED")) {
     for (const a of t.answers) {
-      for (const c of parseCriteria(a.question.criteria)) {
+      const criteria = ensureCriterionMarks(parseCriteria(a.question.criteria), a.question.marks);
+      const awarded = effectiveScores(
+        a.criterionScores && a.criterionScores !== "{}" ? a.criterionScores : a.aiCriterionScores,
+        a.score ?? a.aiScore ?? 0,
+        criteria
+      );
+      for (const c of criteria) {
         const key = `${t.assessment.subject}::${c.criterion}`;
         const cur = critStats.get(key) ?? { earned: 0, max: 0 };
-        cur.earned += a.score ?? a.aiScore ?? 0;
-        cur.max += a.question.marks;
+        cur.earned += awarded[c.criterion] ?? 0;
+        cur.max += c.marks;
         critStats.set(key, cur);
       }
     }

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { markAttempt } from "@/lib/gemini";
+import { parseCriteria, ensureCriterionMarks } from "@/lib/myp";
+import { clampScores, scoresTotal } from "@/lib/scores";
 
 export const maxDuration = 60; // Hobby plan ceiling; raise to 300 on Pro for very long task sheets
 
@@ -48,11 +50,28 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
       for (const r of result.perQuestion) {
         const q = attempt.assessment.questions.find((q) => q.id === r.questionId);
         if (!q) continue;
-        const score = Math.min(Math.max(r.score, 0), q.marks);
+
+        // Each criterion is clamped to its own allocation, and the total is
+        // the sum of those rather than whatever the model called the total.
+        const criteria = ensureCriterionMarks(parseCriteria(q.criteria), q.marks);
+        const perCriterion = clampScores(r.criterionScores ?? {}, criteria);
+        const summed = scoresTotal(perCriterion);
+        const score = Object.keys(perCriterion).length
+          ? summed
+          : Math.min(Math.max(r.score, 0), q.marks);
+
         await db.answer.upsert({
           where: { attemptId_questionId: { attemptId: id, questionId: r.questionId } },
-          create: { attemptId: id, questionId: r.questionId, aiScore: score, aiFeedback: r.feedback, aiConfidence: r.confidence },
-          update: { aiScore: score, aiFeedback: r.feedback, aiConfidence: r.confidence },
+          create: {
+            attemptId: id, questionId: r.questionId, aiScore: score,
+            aiCriterionScores: JSON.stringify(perCriterion),
+            aiFeedback: r.feedback, aiConfidence: r.confidence,
+          },
+          update: {
+            aiScore: score,
+            aiCriterionScores: JSON.stringify(perCriterion),
+            aiFeedback: r.feedback, aiConfidence: r.confidence,
+          },
         });
       }
       await db.attempt.update({

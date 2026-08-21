@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { CRITERIA, criterionName, indicativeLevel, parseCriteria, ensureCriterionMarks, marksForCriterion } from "@/lib/myp";
+import { effectiveScores } from "@/lib/scores";
 import Shell from "@/components/Shell";
 import AnswerDisplay from "@/components/AnswerDisplay";
 import CriterionTags from "@/components/CriterionTag";
@@ -41,11 +42,16 @@ export default async function ResultsPage({ params }: { params: Promise<{ id: st
       const criteria = ensureCriterionMarks(parseCriteria(q.criteria), q.marks);
       const share = marksForCriterion(criteria, c);
       if (share <= 0) continue;
-      const questionTotal = criteria.reduce((sum, x) => sum + x.marks, 0) || q.marks;
       const a = answerFor(q.id);
-      const scored = a?.score ?? a?.aiScore ?? 0;
+      // Prefer the marks actually awarded under this criterion. Older answers
+      // hold only a single total, which is shared out in the marks ratio.
+      const awarded = effectiveScores(
+        a?.criterionScores && a.criterionScores !== "{}" ? a.criterionScores : (a?.aiCriterionScores ?? "{}"),
+        a?.score ?? a?.aiScore ?? 0,
+        criteria
+      );
       max += share;
-      earned += questionTotal > 0 ? (scored * share) / questionTotal : 0;
+      earned += awarded[c] ?? 0;
     }
     return { criterion: c, max, earned, level: indicativeLevel(earned, max) };
   }).filter((r) => r.max > 0);

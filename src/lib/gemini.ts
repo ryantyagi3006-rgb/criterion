@@ -3,6 +3,7 @@ import { renderPages, cropDiagram, docxToParts, DOCX_MIME } from "./pages";
 import { findVideoIds, normaliseMedia, type MediaItem } from "./youtube";
 import { isRetryable, statusOf } from "./ai-errors";
 import { richTextToPlain } from "./richtext";
+import { parseCriteria } from "./myp";
 
 export { describeAiError, type AiErrorInfo } from "./ai-errors";
 
@@ -277,6 +278,7 @@ export type MarkResult = {
   perQuestion: {
     questionId: string;
     score: number;
+    criterionScores: Record<string, number>;
     feedback: string;
     confidence: number;
   }[];
@@ -296,7 +298,13 @@ export async function markAttempt(
   const payload = questions.map((q) => ({
     questionId: q.id,
     number: q.number,
-    criteria: q.criteria ?? "[]",
+    // Each criterion with the marks available under it, so the model marks
+    // against the right allocation rather than one lump total.
+    criteria: parseCriteria(q.criteria ?? "[]").map((c) => ({
+      criterion: c.criterion,
+      strands: c.strands,
+      marksAvailable: c.marks,
+    })),
     question: q.text,
     // Without the source text an analysis question cannot be marked fairly.
     ...(q.stimulus ? { sourceText: q.stimulus } : {}),
@@ -311,13 +319,15 @@ export async function markAttempt(
         : answers[q.id]) || "(no answer given)",
   }));
 
-  const prompt = `You are a fair, rigorous IB MYP examiner marking a student submission. Each question is mapped to one or more MYP criteria (A to D), given as a JSON list with strands. For each question, compare the student's answer against the marking rubric and allocate marks (0 to maxMarks, halves allowed). Explain WHY marks were awarded or withheld using MYP command-term language, identify missing steps and misconceptions, and give one constructive improvement tip. Note: "drawing" answers are image data; if the answer content starts with "data:image" treat it as attempted and mark generously on effort unless clearly blank. Also provide overall feedback: strengths and weaknesses organised by criterion, plus 2-3 revision suggestions. Write all feedback in short, plain sentences. Never use em dashes or emojis.
+  const prompt = `You are a fair, rigorous IB MYP examiner marking a student submission. Each question is mapped to one or more MYP criteria (A to D), given as a JSON list with the strands and the marks available under each one.
+
+Mark EACH criterion separately against its own allocation. For a question listing A worth 4 and C worth 2, decide an A mark out of 4 and a C mark out of 2, judging that criterion on its own terms: A on the knowledge and analysis shown, C on how clearly it is communicated. Return these in "criterionScores", keyed by criterion letter, for example {"A": 3, "C": 1.5}. Never exceed the marks available for a criterion, halves are allowed, and include every criterion the question lists even when the mark is 0. "score" must be the sum of those criterion marks. Explain WHY marks were awarded or withheld using MYP command-term language, identify missing steps and misconceptions, and give one constructive improvement tip. Note: "drawing" answers are image data; if the answer content starts with "data:image" treat it as attempted and mark generously on effort unless clearly blank. Also provide overall feedback: strengths and weaknesses organised by criterion, plus 2-3 revision suggestions. Write all feedback in short, plain sentences. Never use em dashes or emojis.
 
 Submission:
 ${JSON.stringify(payload, null, 2)}
 
 Return ONLY valid JSON:
-{"perQuestion": [{"questionId": string, "score": number, "feedback": string, "confidence": number}], "overallFeedback": string}`;
+{"perQuestion": [{"questionId": string, "score": number, "criterionScores": {"A": number}, "feedback": string, "confidence": number}], "overallFeedback": string}`;
 
   const res = await generateWithRetry(ai, {
     model: MODEL,

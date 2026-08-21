@@ -100,8 +100,13 @@ model Answer {
   content      String   @default("")
   flagged      Boolean  @default(false)
   timeSpentSec Int      @default(0)
-  score        Float? // final (teacher-approved) score
+  score        Float? // final (teacher-approved) total, the sum of criterionScores
   aiScore      Float?
+  // Marks earned per criterion, e.g. {"A": 4, "C": 2}. The totals above are
+  // derived from these, so a question split across criteria is scored against
+  // each one rather than shared out proportionally.
+  criterionScores   String @default("{}")
+  aiCriterionScores String @default("{}")
   aiFeedback   String   @default("")
   aiConfidence Float    @default(0)
 
