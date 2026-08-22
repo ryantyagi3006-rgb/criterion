@@ -34,9 +34,22 @@ export default async function Dashboard() {
 }
 
 async function TeacherDashboard({ userId, name }: { userId: string; name: string }) {
+  // Selected rather than included: this page shows counts and totals, so
+  // pulling whole questions would drag every embedded image through it.
   const assessments = await db.assessment.findMany({
     where: { teacherId: userId },
-    include: { questions: true, attempts: { include: { student: true, answers: true } } },
+    select: {
+      id: true, title: true, subject: true, totalMarks: true,
+      mode: true, aiConfidence: true, status: true,
+      _count: { select: { questions: true } },
+      attempts: {
+        select: {
+          id: true, status: true, totalScore: true,
+          student: { select: { name: true } },
+          answers: { select: { aiScore: true } },
+        },
+      },
+    },
     orderBy: { createdAt: "desc" },
   });
   const pendingReview = assessments.flatMap((a) =>
@@ -70,7 +83,7 @@ async function TeacherDashboard({ userId, name }: { userId: string; name: string
                       <div>
                         <div className="font-semibold text-ink">{a.title}</div>
                         <div className="text-xs text-soft mt-1">
-                          {a.subject} &middot; {a.questions.length} questions &middot; {a.totalMarks} marks &middot;{" "}
+                          {a.subject} &middot; {a._count.questions} questions &middot; {a.totalMarks} marks &middot;{" "}
                           {a.mode === "EXAM" ? "Exam" : "Practice"}
                           {a.aiConfidence > 0 && <> &middot; parse confidence {(a.aiConfidence * 100).toFixed(0)}%</>}
                         </div>
@@ -127,12 +140,28 @@ async function StudentDashboard({ userId, name }: { userId: string; name: string
   const [published, attempts] = await Promise.all([
     db.assessment.findMany({
       where: { status: "PUBLISHED" },
-      include: { questions: true, teacher: true },
+      select: {
+        id: true, title: true, subject: true, totalMarks: true,
+        durationMinutes: true, mode: true, dueDate: true,
+        _count: { select: { questions: true } },
+        teacher: { select: { name: true } },
+      },
       orderBy: { createdAt: "desc" },
     }),
     db.attempt.findMany({
       where: { studentId: userId },
-      include: { assessment: { include: { questions: true } }, answers: { include: { question: true } } },
+      select: {
+        id: true, assessmentId: true, status: true, submittedAt: true, totalScore: true,
+        assessment: { select: { title: true, subject: true, totalMarks: true } },
+        // Only what the criterion analytics need, not the question text,
+        // stimulus or images.
+        answers: {
+          select: {
+            score: true, aiScore: true, criterionScores: true, aiCriterionScores: true,
+            question: { select: { criteria: true, marks: true } },
+          },
+        },
+      },
       orderBy: { startedAt: "desc" },
     }),
   ]);
@@ -194,7 +223,7 @@ async function StudentDashboard({ userId, name }: { userId: string; name: string
                     <div>
                       <div className="font-semibold text-ink">{a.title}</div>
                       <div className="text-xs text-soft mt-1">
-                        {a.subject} &middot; {a.questions.length} questions &middot; {a.totalMarks} marks
+                        {a.subject} &middot; {a._count.questions} questions &middot; {a.totalMarks} marks
                         {a.durationMinutes ? <> &middot; {a.durationMinutes} min</> : null} &middot;{" "}
                         {a.mode === "EXAM" ? "Exam mode" : "Practice mode, tutor on"} &middot; set by {a.teacher.name}
                       </div>
