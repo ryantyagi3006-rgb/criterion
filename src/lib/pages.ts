@@ -1,4 +1,21 @@
-import sharp from "sharp";
+// sharp is a native binary and mupdf is a WASM module. Loading either at
+// import time means every route that merely mentions this file pays for it,
+// and a load failure takes the whole route down before its handler runs.
+// Both are pulled in on demand instead.
+type SharpFactory = (typeof import("sharp"))["default"];
+let sharpPromise: Promise<SharpFactory> | null = null;
+
+function loadSharp(): Promise<SharpFactory> {
+  if (!sharpPromise) {
+    sharpPromise = import("sharp")
+      .then((m) => m.default)
+      .catch((error) => {
+        sharpPromise = null;
+        throw error;
+      });
+  }
+  return sharpPromise;
+}
 
 export type RenderedPage = {
   png: Buffer; // full-quality page, used for cropping diagrams
@@ -32,6 +49,7 @@ export async function renderPages(buffer: Buffer, mimeType: string): Promise<Ren
         true
       );
       const png = Buffer.from(pixmap.asPNG());
+      const sharp = await loadSharp();
       const jpeg = await sharp(png).jpeg({ quality: 70 }).toBuffer();
 
       let text = "";
@@ -67,6 +85,7 @@ export async function renderPages(buffer: Buffer, mimeType: string): Promise<Ren
   }
 
   if (mimeType.startsWith("image/")) {
+    const sharp = await loadSharp();
     const img = sharp(buffer);
     const meta = await img.metadata();
     const png = await img.png().toBuffer();
@@ -101,6 +120,7 @@ export async function docxToParts(buffer: Buffer): Promise<{ html: string; image
   const images: string[] = [];
   for (const r of raw) {
     try {
+      const sharp = await loadSharp();
       const jpeg = await sharp(Buffer.from(r.base64, "base64"))
         .resize({ width: 1600, withoutEnlargement: true })
         .jpeg({ quality: 80 })
@@ -131,6 +151,7 @@ export async function cropDiagram(page: RenderedPage, box: number[]): Promise<st
   const height = Math.round((y1 - y0) * page.height);
   if (width < 20 || height < 20) return null;
 
+  const sharp = await loadSharp();
   const out = await sharp(page.png)
     .extract({ left, top, width, height })
     .png()

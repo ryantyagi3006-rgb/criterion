@@ -6,6 +6,7 @@ import { richTextToPlain } from "./richtext";
 import { parseCriteria } from "./myp";
 
 export { describeAiError, type AiErrorInfo } from "./ai-errors";
+export { aiAvailable } from "./ai-available";
 
 // Free-tier Gemini Flash model. The -latest alias tracks the current Flash
 // release, so it keeps working as Google retires older versions.
@@ -17,9 +18,7 @@ function client() {
   return new GoogleGenAI({ apiKey: key });
 }
 
-export function aiAvailable() {
-  return !!process.env.GEMINI_API_KEY;
-}
+
 
 type GenerateArgs = Parameters<GoogleGenAI["models"]["generateContent"]>[0];
 

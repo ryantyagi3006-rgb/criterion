@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { aiAvailable } from "@/lib/gemini";
+import { aiAvailable } from "@/lib/ai-available";
 import { criterionName, indicativeLevel, parseCriteria, ensureCriterionMarks } from "@/lib/myp";
 import { effectiveScores } from "@/lib/scores";
 import { formatDate, formatDateTime } from "@/lib/dates";
