@@ -33,6 +33,12 @@ export default async function ResultsPage({ params }: { params: Promise<{ id: st
 
   // Criterion breakdown for the released result. A question contributes its
   // marks to every criterion it assesses.
+  const teacherLevels: Record<string, number> = {};
+  try {
+    const raw = JSON.parse(attempt.criterionLevels || "{}");
+    for (const k of CRITERIA) if (Number.isFinite(Number(raw[k]))) teacherLevels[k] = Number(raw[k]);
+  } catch {}
+
   const critRows = CRITERIA.map((c) => {
     // Only the marks assigned to this criterion count toward it, and a
     // student's score on a split question is shared out in the same ratio.
@@ -53,7 +59,13 @@ export default async function ResultsPage({ params }: { params: Promise<{ id: st
       max += share;
       earned += awarded[c] ?? 0;
     }
-    return { criterion: c, max, earned, level: indicativeLevel(earned, max) };
+    return {
+      criterion: c, max, earned,
+      // The teacher's level wins. Marks only ever suggest one, because the
+      // boundaries differ by subject and year.
+      level: teacherLevels[c] ?? indicativeLevel(earned, max),
+      teacherSet: teacherLevels[c] !== undefined,
+    };
   }).filter((r) => r.max > 0);
 
   return (
@@ -72,6 +84,15 @@ export default async function ResultsPage({ params }: { params: Promise<{ id: st
                 {(((attempt.totalScore ?? 0) / Math.max(1, assessment.totalMarks)) * 100).toFixed(0)}%, reviewed and released by your teacher
               </div>
 
+              {attempt.grade !== null && attempt.grade !== undefined && (
+                <div className="mt-4 inline-flex items-center gap-3 rounded-xl border border-teal bg-tealwash px-5 py-3">
+                  <span className="microlabel">MYP grade</span>
+                  <span className="font-display text-3xl font-semibold text-tealdeep">
+                    {attempt.grade}<span className="text-base text-soft">/7</span>
+                  </span>
+                </div>
+              )}
+
               {critRows.length > 0 && (
                 <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-3 text-left">
                   {critRows.map((r) => (
@@ -81,7 +102,7 @@ export default async function ResultsPage({ params }: { params: Promise<{ id: st
                         <span className="font-display text-xl font-semibold text-teal">{r.level}<span className="text-xs text-soft">/8</span></span>
                       </div>
                       <div className="text-[11px] text-soft mt-1 leading-tight">{criterionName(assessment.subject, r.criterion)}</div>
-                      <div className="text-[11px] text-soft mt-1">{r.earned}/{r.max} marks</div>
+                      <div className="text-[11px] text-soft mt-1">{r.earned}/{r.max} marks{r.teacherSet ? "" : ", indicative"}</div>
                     </div>
                   ))}
                 </div>

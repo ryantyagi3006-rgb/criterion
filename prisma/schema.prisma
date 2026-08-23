@@ -85,6 +85,13 @@ model Attempt {
   startedAt    DateTime   @default(now())
   submittedAt  DateTime?
   totalScore   Float?
+  // Extra time granted by the teacher, added to the assessment duration.
+  // Also how a reopened submission gets a usable deadline again.
+  extraMinutes Int        @default(0)
+  // MYP levels are decided against grade boundaries that change by subject
+  // and year, so the teacher sets them rather than the marks implying them.
+  criterionLevels String  @default("{}") // e.g. {"A": 6, "C": 5}
+  grade           Int?    // overall MYP grade, 1 to 7
   overallFeedback String  @default("")
   answers      Answer[]
 

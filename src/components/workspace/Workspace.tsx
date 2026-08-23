@@ -21,6 +21,7 @@ export type WQuestion = {
 export type WAttempt = {
   id: string;
   startedAt: string;
+  extraMinutes: number;
   answers: { questionId: string; content: string; flagged: boolean }[];
   assessment: {
     id: string; title: string; subject: string; instructions: string; mode: string;
@@ -97,10 +98,14 @@ export default function Workspace({ attempt }: { attempt: WAttempt }) {
   }, [idx, questions, trackTime]);
 
   // ---------- countdown timer ----------
+  // Extra time granted by the teacher extends the deadline. It is also what
+  // makes a reopened submission usable, since the original deadline has
+  // normally passed by then.
   const deadline = useMemo(() => {
     if (!assessment.durationMinutes) return null;
-    return new Date(attempt.startedAt).getTime() + assessment.durationMinutes * 60_000;
-  }, [assessment.durationMinutes, attempt.startedAt]);
+    const minutes = assessment.durationMinutes + (attempt.extraMinutes ?? 0);
+    return new Date(attempt.startedAt).getTime() + minutes * 60_000;
+  }, [assessment.durationMinutes, attempt.extraMinutes, attempt.startedAt]);
   const [remaining, setRemaining] = useState<number | null>(null);
 
   const submit = useCallback(async () => {
