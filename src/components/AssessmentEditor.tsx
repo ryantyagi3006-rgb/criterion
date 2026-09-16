@@ -6,7 +6,7 @@ import { TOOLS } from "@/lib/tools";
 import { CRITERIA, SUBJECT_GROUP_NAMES, criterionName, parseCriteria, ensureCriterionMarks, criteriaTotal, marksForCriterion } from "@/lib/myp";
 import CriterionTags from "./CriterionTag";
 import RichTextEditor from "./RichTextEditor";
-import { richTextToPlain } from "@/lib/richtext";
+import RichText from "./RichText";
 import DiagramStrip from "./DiagramStrip";
 import MediaPanel from "./MediaPanel";
 import QuestionImages from "./QuestionImages";
@@ -270,7 +270,7 @@ export default function AssessmentEditor({
                     <div className="mb-1.5">
                       <CriterionTags subjectGroup={meta.subject} criteria={q.criteriaArr} />
                     </div>
-                    <p className="text-sm text-ink line-clamp-2">{richTextToPlain(q.text)}</p>
+                    <RichText html={q.text} inline className="block text-sm text-ink line-clamp-2" />
                     <DiagramStrip diagrams={JSON.stringify(q.diagramsArr)} small />
                     <MediaPanel media={q.media} compact />
                     <div className="flex flex-wrap gap-1.5 mt-2">

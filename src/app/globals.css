@@ -135,3 +135,26 @@ body {
 .richtext p { margin: 0.35rem 0; }
 .richtext p:first-child { margin-top: 0; }
 .richtext p:last-child { margin-bottom: 0; }
+
+/* Compact one-line rendering, for the question summary in the editor. Bold,
+   italic, underline and colour still show, but blocks and lists are laid out
+   on a single run so a long question still previews as a line or two. */
+.richtext-inline ul,
+.richtext-inline ol,
+.richtext-inline li,
+.richtext-inline p,
+.richtext-inline div {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.richtext-inline li::before {
+  content: " · ";
+  color: var(--soft);
+}
+
+.richtext-inline br {
+  display: none;
+}
