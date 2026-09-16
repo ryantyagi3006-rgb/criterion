@@ -15,6 +15,55 @@ const LISTS = [
 
 const COLOUR_CLASSES = TEXT_COLOURS.map((c) => `hl-${c.name}`);
 
+/**
+ * Bold, italic and underline can arrive as inline CSS rather than as tags:
+ * from a paste out of a word processor, or from a browser that styles a
+ * command its own way. Only the tags survive being cleaned, so the styles are
+ * turned into tags here, while the markup is still a live DOM and the edges
+ * of the selection are known. Returns the outermost tag it created, so the
+ * caller can leave that text selected.
+ */
+const MARK_STYLES = [
+  { prop: "font-weight", tag: "b", match: (v: string) => v === "bold" || Number(v) >= 600 },
+  { prop: "font-style", tag: "i", match: (v: string) => v === "italic" },
+  { prop: "text-decoration-line", tag: "u", match: (v: string) => v.includes("underline") },
+  { prop: "text-decoration", tag: "u", match: (v: string) => v.includes("underline") },
+];
+
+function normaliseMarks(root: HTMLElement): HTMLElement | null {
+  let last: HTMLElement | null = null;
+
+  for (const el of Array.from(root.querySelectorAll<HTMLElement>("[style]"))) {
+    const tags: string[] = [];
+    for (const m of MARK_STYLES) {
+      const value = el.style.getPropertyValue(m.prop).toLowerCase().trim();
+      if (value && m.match(value)) {
+        if (!tags.includes(m.tag)) tags.push(m.tag);
+        el.style.removeProperty(m.prop);
+      }
+    }
+    if (!tags.length) continue;
+
+    const fragment = document.createDocumentFragment();
+    fragment.append(...Array.from(el.childNodes));
+    let inner: Node = fragment;
+    for (const tag of tags) {
+      const wrapper = document.createElement(tag);
+      wrapper.append(inner);
+      inner = wrapper;
+      last = wrapper;
+    }
+    el.append(inner);
+
+    if (!el.getAttribute("style")) el.removeAttribute("style");
+    // A span that only carried the style has nothing left to say.
+    if (el.tagName === "SPAN" && !el.attributes.length)
+      el.replaceWith(...Array.from(el.childNodes));
+  }
+
+  return last;
+}
+
 const btn =
   "h-8 min-w-8 px-1.5 rounded-lg border text-sm transition-colors disabled:opacity-50";
 
@@ -64,11 +113,29 @@ export default function RichTextEditor({
   }
 
   function emit() {
-    // Colours are rewritten to palette classes the moment they are applied, so
-    // an inline style never reaches the database.
-    const html = normaliseColours(ref.current?.innerHTML ?? "");
-    if (ref.current && ref.current.innerHTML !== html) ref.current.innerHTML = html;
-    onChange(html);
+    const el = ref.current;
+    if (!el) return;
+
+    // Colours are rewritten to palette classes and marks to tags the moment
+    // they are applied, so inline style never reaches the database. Plain
+    // typing produces neither, so this does nothing on an ordinary keystroke
+    // and the caret is left alone.
+    if (/style=|<font/i.test(el.innerHTML)) {
+      const wrapped = normaliseMarks(el);
+      const html = normaliseColours(el.innerHTML);
+      if (el.innerHTML !== html) el.innerHTML = html;
+      // Keep the text the user just formatted selected, so a second mark can
+      // be applied to it without reaching for the mouse again.
+      else if (wrapped && el.contains(wrapped)) {
+        const range = document.createRange();
+        range.selectNodeContents(wrapped);
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+      }
+    }
+
+    onChange(el.innerHTML);
     refreshActive();
   }
 
@@ -76,7 +143,12 @@ export default function RichTextEditor({
     ref.current?.focus();
     // execCommand is deprecated but is still the only thing every browser
     // implements for this, and the output is sanitised before it is shown.
-    if (arg !== undefined) document.execCommand("styleWithCSS", false, "true");
+    //
+    // styleWithCSS is a setting on the document, not on the call, so it has
+    // to be set every time. Colour needs it on, because there is no tag for
+    // a colour. Everything else needs it off, or bold comes back as inline
+    // CSS instead of a b tag and is dropped when the markup is cleaned.
+    document.execCommand("styleWithCSS", false, command === "foreColor" ? "true" : "false");
     document.execCommand(command, false, arg);
     emit();
   }
