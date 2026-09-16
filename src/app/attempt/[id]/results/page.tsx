@@ -6,6 +6,7 @@ import { CRITERIA, criterionName, indicativeLevel, parseCriteria, ensureCriterio
 import { effectiveScores } from "@/lib/scores";
 import Shell from "@/components/Shell";
 import AnswerDisplay from "@/components/AnswerDisplay";
+import RichText from "@/components/RichText";
 import CriterionTags from "@/components/CriterionTag";
 import DiagramStrip from "@/components/DiagramStrip";
 import StimulusPanel from "@/components/StimulusPanel";
@@ -151,7 +152,7 @@ export default async function ResultsPage({ params }: { params: Promise<{ id: st
                   {score}/{q.marks}
                 </span>
               </div>
-              <p className="mt-3 text-sm text-ink whitespace-pre-wrap leading-relaxed">{q.text}</p>
+              <RichText html={q.text} className="mt-3 text-sm text-ink leading-relaxed" />
               <DiagramStrip diagrams={q.diagrams} small />
               <StimulusPanel stimulus={q.stimulus} title={q.stimulusTitle} compact />
               <div className="mt-3 rounded-lg bg-paper border border-line p-3">

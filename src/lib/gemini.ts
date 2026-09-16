@@ -304,7 +304,9 @@ export async function markAttempt(
       strands: c.strands,
       marksAvailable: c.marks,
     })),
-    question: q.text,
+    // Question wording carries the teacher's formatting. Marking is about
+    // the words, so the tags are flattened before the model sees them.
+    question: richTextToPlain(q.text),
     // Without the source text an analysis question cannot be marked fairly.
     ...(q.stimulus ? { sourceText: q.stimulus } : {}),
     maxMarks: q.marks,

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { WQuestion } from "./Workspace";
-import { countWords } from "@/lib/richtext";
+import RichTextEditor from "../RichTextEditor";
 
 const box = "w-full rounded-lg border border-line bg-paper px-4 py-3 text-sm outline-none focus:border-teal focus:ring-1 focus:ring-teal text-ink placeholder:text-soft";
 const chip = "text-xs px-2.5 py-1.5 rounded-lg border border-line font-medium text-soft hover:border-soft transition-colors";
@@ -52,84 +52,19 @@ function Mcq({ question, value, onChange }: { question: WQuestion; value: string
   );
 }
 
-/* ---------- Long response: bold, italic, underline, plus word count ---------- */
-const MARKS = [
-  { command: "bold", label: "B", title: "Bold (Cmd or Ctrl + B)", className: "font-bold" },
-  { command: "italic", label: "I", title: "Italic (Cmd or Ctrl + I)", className: "italic font-serif" },
-  { command: "underline", label: "U", title: "Underline (Cmd or Ctrl + U)", className: "underline" },
-] as const;
-
+/* ---------- Long response: formatting, lists, plus word count ---------- */
 function LongText({ value, onChange, spellCheck }: { value: string; onChange: (v: string) => void; spellCheck: boolean }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [active, setActive] = useState<Record<string, boolean>>({});
-
-  // contenteditable is uncontrolled, so only write into it when the incoming
-  // value genuinely differs. Rewriting on every keystroke would collapse the
-  // caret to the start of the text.
-  useEffect(() => {
-    const el = ref.current;
-    if (el && el.innerHTML !== value) el.innerHTML = value;
-  }, [value]);
-
-  function refreshActiveMarks() {
-    setActive({
-      bold: document.queryCommandState("bold"),
-      italic: document.queryCommandState("italic"),
-      underline: document.queryCommandState("underline"),
-    });
-  }
-
-  function applyMark(command: string) {
-    ref.current?.focus();
-    // execCommand is deprecated but is still the only thing every browser
-    // implements for this, and the output is sanitised before it is shown.
-    document.execCommand(command);
-    onChange(ref.current?.innerHTML ?? "");
-    refreshActiveMarks();
-  }
-
-  const words = countWords(value);
-
   return (
-    <div>
-      <div className="flex items-center gap-1 mb-2">
-        {MARKS.map((m) => (
-          <button
-            key={m.command}
-            type="button"
-            title={m.title}
-            aria-pressed={!!active[m.command]}
-            onMouseDown={(e) => e.preventDefault()} // keep the selection
-            onClick={() => applyMark(m.command)}
-            className={`w-8 h-8 rounded-lg border text-sm transition-colors ${m.className} ${
-              active[m.command]
-                ? "border-teal bg-tealwash text-tealdeep"
-                : "border-line bg-paper text-ink hover:border-teal"
-            }`}
-          >
-            {m.label}
-          </button>
-        ))}
-        <span className="ml-2 text-[11px] text-soft">Select text, then format it.</span>
-      </div>
-
-      <div
-        ref={ref}
-        role="textbox"
-        aria-multiline="true"
-        aria-label="Your response"
-        contentEditable
-        suppressContentEditableWarning
-        spellCheck={spellCheck}
-        data-placeholder="Write your response here"
-        onInput={(e) => onChange((e.target as HTMLDivElement).innerHTML)}
-        onKeyUp={refreshActiveMarks}
-        onMouseUp={refreshActiveMarks}
-        onFocus={refreshActiveMarks}
-        className={`${box} min-h-44 leading-relaxed whitespace-pre-wrap [&_u]:underline [&_b]:font-semibold [&_strong]:font-semibold`}
-      />
-      <div className="mt-1.5 text-xs text-soft text-right">{words} word{words === 1 ? "" : "s"}</div>
-    </div>
+    <RichTextEditor
+      value={value}
+      onChange={onChange}
+      spellCheck={spellCheck}
+      wordCount
+      ariaLabel="Your response"
+      placeholder="Write your response here"
+      minHeight="min-h-44"
+      className={`${box} leading-relaxed`}
+    />
   );
 }
 

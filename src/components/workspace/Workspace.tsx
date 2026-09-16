@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { TOOLS } from "@/lib/tools";
 import AnswerInput from "./AnswerInput";
+import RichText from "../RichText";
 import ToolsPanel from "./ToolsPanel";
 import TutorPanel from "./TutorPanel";
 import ThemeToggle from "../ThemeToggle";
@@ -270,7 +271,7 @@ export default function Workspace({ attempt }: { attempt: WAttempt }) {
                   {flags[q.id] ? "Flagged" : "Flag"}
                 </button>
               </div>
-              <p className="mt-4 text-ink whitespace-pre-wrap leading-relaxed">{q.text}</p>
+              <RichText html={q.text} className="mt-4 text-ink leading-relaxed" />
               <DiagramStrip diagrams={q.diagrams} />
               <MediaPanel media={q.media} />
               <StimulusPanel stimulus={q.stimulus} title={q.stimulusTitle} />

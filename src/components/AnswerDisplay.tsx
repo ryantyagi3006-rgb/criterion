@@ -1,4 +1,4 @@
-import { sanitizeRichText } from "@/lib/richtext";
+import RichText from "./RichText";
 
 /* Renders a stored answer for results and review views. */
 export default function AnswerDisplay({ format, content }: { format: string; content: string }) {
@@ -8,12 +8,7 @@ export default function AnswerDisplay({ format, content }: { format: string; con
   // being shown to a teacher, so it is reduced to a formatting-only allowlist
   // with every attribute stripped before rendering.
   if (format === "long_text")
-    return (
-      <div
-        className="text-sm text-ink leading-relaxed whitespace-pre-wrap [&_u]:underline [&_b]:font-semibold [&_strong]:font-semibold"
-        dangerouslySetInnerHTML={{ __html: sanitizeRichText(content) }}
-      />
-    );
+    return <RichText html={content} className="text-sm text-ink leading-relaxed" />;
 
   if (format === "drawing" && content.startsWith("data:image"))
     // eslint-disable-next-line @next/next/no-img-element

@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import AnswerDisplay from "./AnswerDisplay";
+import RichText from "./RichText";
 import CriterionTags from "./CriterionTag";
 import DiagramStrip from "./DiagramStrip";
 import StimulusPanel from "./StimulusPanel";
@@ -347,7 +348,7 @@ export default function ReviewPanel({ attempt }: Props) {
                 </span>
               </div>
             </div>
-            <p className="mt-3 text-sm text-ink whitespace-pre-wrap leading-relaxed">{q.text}</p>
+            <RichText html={q.text} className="mt-3 text-sm text-ink leading-relaxed" />
             <DiagramStrip diagrams={q.diagrams} small />
             <MediaPanel media={q.media} compact />
             <StimulusPanel stimulus={q.stimulus} title={q.stimulusTitle} compact />

@@ -5,6 +5,8 @@ import Link from "next/link";
 import { TOOLS } from "@/lib/tools";
 import { CRITERIA, SUBJECT_GROUP_NAMES, criterionName, parseCriteria, ensureCriterionMarks, criteriaTotal, marksForCriterion } from "@/lib/myp";
 import CriterionTags from "./CriterionTag";
+import RichTextEditor from "./RichTextEditor";
+import { richTextToPlain } from "@/lib/richtext";
 import DiagramStrip from "./DiagramStrip";
 import MediaPanel from "./MediaPanel";
 import QuestionImages from "./QuestionImages";
@@ -268,7 +270,7 @@ export default function AssessmentEditor({
                     <div className="mb-1.5">
                       <CriterionTags subjectGroup={meta.subject} criteria={q.criteriaArr} />
                     </div>
-                    <p className="text-sm text-ink line-clamp-2">{q.text}</p>
+                    <p className="text-sm text-ink line-clamp-2">{richTextToPlain(q.text)}</p>
                     <DiagramStrip diagrams={JSON.stringify(q.diagramsArr)} small />
                     <MediaPanel media={q.media} compact />
                     <div className="flex flex-wrap gap-1.5 mt-2">
@@ -289,10 +291,20 @@ export default function AssessmentEditor({
 
                 {open && (
                   <div className="border-t border-line p-4 grid gap-3 sm:grid-cols-2">
-                    <label className="microlabel space-y-1 sm:col-span-2">
+                    <div className="microlabel space-y-1 sm:col-span-2">
                       <span>Question text</span>
-                      <textarea className={input} rows={3} value={q.text} onChange={(e) => patchQ(q.id, { text: e.target.value })} />
-                    </label>
+                      <div className="normal-case tracking-normal font-normal">
+                        <RichTextEditor
+                          value={q.text}
+                          onChange={(v) => patchQ(q.id, { text: v })}
+                          colours
+                          ariaLabel={`Question ${q.number} text`}
+                          placeholder="Write the question"
+                          minHeight="min-h-20"
+                          className={`${input} leading-relaxed`}
+                        />
+                      </div>
+                    </div>
                     <div className="grid grid-cols-3 gap-2">
                       <label className="microlabel space-y-1">
                         <span>Number</span>

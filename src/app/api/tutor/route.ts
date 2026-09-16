@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { tutorReply } from "@/lib/gemini";
+import { richTextToPlain } from "@/lib/richtext";
 
 export const maxDuration = 60;
 
@@ -19,6 +20,6 @@ export async function POST(req: Request) {
   if (question.assessment.mode !== "PRACTICE")
     return NextResponse.json({ error: "AI tutor is disabled in exam mode" }, { status: 403 });
 
-  const reply = await tutorReply(question.text, answer ?? "", chat ?? []);
+  const reply = await tutorReply(richTextToPlain(question.text), answer ?? "", chat ?? []);
   return NextResponse.json({ reply });
 }

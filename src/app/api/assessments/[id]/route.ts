@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { normaliseMedia } from "@/lib/youtube";
 import { parseSections, serialiseSections } from "@/lib/sections";
 import { parseCriteria, criteriaTotal } from "@/lib/myp";
+import { sanitizeRichText } from "@/lib/richtext";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -58,7 +59,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
       await db.question.update({
         where: { id: q.id },
         data: {
-          text: q.text,
+          text: sanitizeRichText(q.text ?? ""),
           number: q.number,
           section: q.section,
           criteria: JSON.stringify(q.criteria ?? []),

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { sanitizeRichText } from "@/lib/richtext";
 import { getSession } from "@/lib/auth";
 import { parseDocument, describeAiError } from "@/lib/gemini";
 
@@ -127,7 +128,7 @@ export async function POST(req: Request) {
           stimulus: q.stimulus ?? "",
           stimulusTitle: q.stimulusTitle ?? "",
           media: JSON.stringify(q.media ?? []),
-          text: q.text,
+          text: sanitizeRichText(q.text ?? ""),
           answerFormat: q.answerFormat,
           options: JSON.stringify(q.options),
           marks: q.marks,

@@ -86,3 +86,52 @@ body {
   color: color-mix(in srgb, var(--soft) 60%, transparent);
   pointer-events: none;
 }
+
+/* Text colours a teacher can apply to question wording. They are classes, not
+   inline styles, so each one can be darker on paper and lighter in the dark
+   theme instead of one fixed value that goes muddy in one of them. */
+:root {
+  --hl-red: #b3261e;
+  --hl-amber: #96620a;
+  --hl-green: #0f6b3d;
+  --hl-blue: #1b4fb0;
+  --hl-purple: #6321a8;
+}
+
+.dark {
+  --hl-red: #f0918a;
+  --hl-amber: #e0ae5c;
+  --hl-green: #74c99a;
+  --hl-blue: #8fb4f5;
+  --hl-purple: #c2a0ee;
+}
+
+.hl-red { color: var(--hl-red); }
+.hl-amber { color: var(--hl-amber); }
+.hl-green { color: var(--hl-green); }
+.hl-blue { color: var(--hl-blue); }
+.hl-purple { color: var(--hl-purple); }
+
+/* Lists inside question text and student responses. Tailwind's reset strips
+   markers, so they are put back here for every place this markup is shown. */
+.richtext ul,
+.richtext ol {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+.richtext ul { list-style: disc outside; }
+.richtext ol { list-style: decimal outside; }
+
+.richtext li {
+  margin: 0.2rem 0;
+  padding-left: 0.15rem;
+}
+
+.richtext li::marker { color: var(--soft); }
+.richtext u { text-decoration: underline; }
+.richtext b,
+.richtext strong { font-weight: 600; }
+.richtext p { margin: 0.35rem 0; }
+.richtext p:first-child { margin-top: 0; }
+.richtext p:last-child { margin-bottom: 0; }
