@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Fraunces, Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
+// Typesetting for maths shown back to students and teachers.
+import "katex/dist/katex.min.css";
 
 const fraunces = Fraunces({ variable: "--font-fraunces", subsets: ["latin"], axes: ["opsz"] });
 const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });

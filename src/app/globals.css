@@ -158,3 +158,17 @@ body {
 .richtext-inline br {
   display: none;
 }
+
+/* Typeset maths, shown back to students and teachers. KaTeX paints in the
+   inherited colour, so it only needs to be told to follow the page. */
+.katex {
+  color: var(--ink);
+  font-size: 1.15em;
+}
+
+.katex-display {
+  margin: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.15rem 0;
+}

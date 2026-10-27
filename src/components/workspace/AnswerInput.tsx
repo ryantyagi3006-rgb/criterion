@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { WQuestion } from "./Workspace";
 import RichTextEditor from "../RichTextEditor";
+import MathField from "./MathField";
 
 const box = "w-full rounded-lg border border-line bg-paper px-4 py-3 text-sm outline-none focus:border-teal focus:ring-1 focus:ring-teal text-ink placeholder:text-soft";
 const chip = "text-xs px-2.5 py-1.5 rounded-lg border border-line font-medium text-soft hover:border-soft transition-colors";
@@ -68,31 +69,15 @@ function LongText({ value, onChange, spellCheck }: { value: string; onChange: (v
   );
 }
 
-/* ---------- Math: working area plus symbol palette ---------- */
-const SYMBOLS = ["√", "π", "²", "³", "×", "÷", "±", "≤", "≥", "≠", "≈", "°", "θ", "∞", "Δ", "∑", "∫", "½", "¼", "¾"];
+/* ---------- Math: a real equation editor, stored as LaTeX ---------- */
 function MathInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const ref = useRef<HTMLTextAreaElement>(null);
-  function insert(sym: string) {
-    const el = ref.current;
-    if (!el) return onChange(value + sym);
-    const start = el.selectionStart;
-    const next = value.slice(0, start) + sym + value.slice(el.selectionEnd);
-    onChange(next);
-    requestAnimationFrame(() => { el.focus(); el.setSelectionRange(start + sym.length, start + sym.length); });
-  }
   return (
     <div>
-      <div className="flex flex-wrap gap-1 mb-2">
-        {SYMBOLS.map((s) => (
-          <button key={s} onClick={() => insert(s)} type="button"
-            className="w-8 h-8 rounded-lg border border-line bg-paper hover:border-teal text-sm text-ink transition-colors">
-            {s}
-          </button>
-        ))}
-      </div>
-      <textarea ref={ref} className={`${box} min-h-32 font-mono`} value={value}
-        placeholder={"Show your working, e.g.\nc² = a² + b²\nc² = 3² + 4² = 25\nc = 5 m"}
-        onChange={(e) => onChange(e.target.value)} />
+      <MathField value={value} onChange={onChange} ariaLabel="Mathematical working" />
+      <p className="mt-1.5 text-[11px] text-soft">
+        Type as you would say it. A slash starts a fraction, ^ a power, and sqrt a root.
+        Press the keyboard button in the field for the full symbol set.
+      </p>
     </div>
   );
 }

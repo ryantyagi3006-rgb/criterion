@@ -1,4 +1,5 @@
 import RichText from "./RichText";
+import MathDisplay from "./MathDisplay";
 
 /* Renders a stored answer for results and review views. */
 export default function AnswerDisplay({ format, content }: { format: string; content: string }) {
@@ -37,7 +38,9 @@ export default function AnswerDisplay({ format, content }: { format: string; con
     } catch {}
   }
 
-  if (format === "code" || format === "math")
+  if (format === "math") return <MathDisplay latex={content} />;
+
+  if (format === "code")
     return <pre className="text-sm font-mono whitespace-pre-wrap rounded-lg bg-paper border border-line p-3 text-ink">{content}</pre>;
 
   return <p className="text-sm whitespace-pre-wrap text-ink leading-relaxed">{content}</p>;

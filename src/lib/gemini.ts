@@ -3,6 +3,7 @@ import { renderPages, cropDiagram, docxToParts, DOCX_MIME } from "./pages";
 import { findVideoIds, normaliseMedia, type MediaItem } from "./youtube";
 import { isRetryable, statusOf } from "./ai-errors";
 import { richTextToPlain } from "./richtext";
+import { mathToPlain } from "./latex";
 import { parseCriteria } from "./myp";
 
 export { describeAiError, type AiErrorInfo } from "./ai-errors";
@@ -314,10 +315,15 @@ export async function markAttempt(
     format: q.answerFormat,
     // Extended responses are stored with formatting markup. Marking is about
     // the prose, so the tags are flattened rather than fed to the model.
+    // Extended responses carry formatting markup and maths working is LaTeX.
+    // Marking is about the content, so both are reduced to readable text
+    // rather than being fed to the model as source.
     studentAnswer:
       (q.answerFormat === "long_text"
         ? richTextToPlain(answers[q.id] ?? "")
-        : answers[q.id]) || "(no answer given)",
+        : q.answerFormat === "math"
+          ? mathToPlain(answers[q.id] ?? "")
+          : answers[q.id]) || "(no answer given)",
   }));
 
   const prompt = `You are a fair, rigorous IB MYP examiner marking a student submission. Each question is mapped to one or more MYP criteria (A to D), given as a JSON list with the strands and the marks available under each one.
