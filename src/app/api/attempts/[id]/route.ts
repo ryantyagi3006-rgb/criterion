@@ -17,6 +17,17 @@ export async function PATCH(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Attempt already submitted" }, { status: 409 });
 
   const { questionId, content, flagged, addTimeSec } = await req.json();
+
+  // The question has to belong to the paper being attempted. Without this a
+  // valid id from another assessment would write a stray answer, and a made
+  // up id would throw on the foreign key as an unhandled 500.
+  const belongs = await db.question.findFirst({
+    where: { id: questionId, assessmentId: attempt.assessmentId },
+    select: { id: true },
+  });
+  if (!belongs)
+    return NextResponse.json({ error: "Unknown question" }, { status: 400 });
+
   const existing = await db.answer.findUnique({
     where: { attemptId_questionId: { attemptId: id, questionId } },
   });

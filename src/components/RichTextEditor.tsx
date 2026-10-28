@@ -82,6 +82,7 @@ export default function RichTextEditor({
   placeholder = "",
   className = "",
   minHeight = "min-h-24",
+  extras,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -92,6 +93,8 @@ export default function RichTextEditor({
   placeholder?: string;
   className?: string;
   minHeight?: string;
+  /** Rendered at the end of the toolbar, so resources share the one bar. */
+  extras?: React.ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState<Record<string, boolean>>({});
@@ -281,7 +284,14 @@ export default function RichTextEditor({
           </>
         )}
 
-        <span className="ml-2 text-[11px] text-soft">Select text, then format it.</span>
+        {extras ? (
+          <>
+            <span className="w-px h-5 bg-line mx-1" />
+            {extras}
+          </>
+        ) : (
+          <span className="ml-2 text-[11px] text-soft">Select text, then format it.</span>
+        )}
       </div>
 
       <div

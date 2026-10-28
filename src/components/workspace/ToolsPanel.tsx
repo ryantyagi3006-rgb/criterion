@@ -25,6 +25,11 @@ export default function ToolsPanel({ toolIds }: { toolIds: string[] }) {
   );
 }
 
+/** One tool on its own, for the resource bar beside an answer. */
+export function ToolView({ id }: { id: string }) {
+  return <>{renderTool(id)}</>;
+}
+
 function renderTool(id: string) {
   switch (id) {
     case "calculator": return <Calculator />;

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { WQuestion } from "./Workspace";
 import RichTextEditor from "../RichTextEditor";
 import MathField from "./MathField";
+import ResourceBar from "./ResourceBar";
 
 const box = "w-full rounded-lg border border-line bg-paper px-4 py-3 text-sm outline-none focus:border-teal focus:ring-1 focus:ring-teal text-ink placeholder:text-soft";
 const chip = "text-xs px-2.5 py-1.5 rounded-lg border border-line font-medium text-soft hover:border-soft transition-colors";
@@ -12,19 +13,32 @@ export default function AnswerInput({
 }: {
   question: WQuestion; value: string; onChange: (v: string) => void; examMode: boolean;
 }) {
-  switch (question.answerFormat) {
-    case "mcq": return <Mcq question={question} value={value} onChange={onChange} />;
-    case "math": return <MathInput value={value} onChange={onChange} />;
-    case "code": return <CodeInput value={value} onChange={onChange} />;
-    case "drawing": return <DrawingInput value={value} onChange={onChange} />;
-    case "table": return <TableInput value={value} onChange={onChange} />;
-    case "long_text": return <LongText value={value} onChange={onChange} spellCheck={!examMode} />;
-    default:
-      return (
-        <input className={box} value={value} placeholder="Type your answer"
-          spellCheck={!examMode} onChange={(e) => onChange(e.target.value)} />
-      );
-  }
+  // Prose answers fold the resources into the formatting bar, so a student
+  // sees one strip of buttons rather than two stacked rows.
+  if (question.answerFormat === "long_text")
+    return <LongText value={value} onChange={onChange} spellCheck={!examMode} />;
+
+  const field = (() => {
+    switch (question.answerFormat) {
+      case "mcq": return <Mcq question={question} value={value} onChange={onChange} />;
+      case "math": return <MathInput value={value} onChange={onChange} />;
+      case "code": return <CodeInput value={value} onChange={onChange} />;
+      case "drawing": return <DrawingInput value={value} onChange={onChange} />;
+      case "table": return <TableInput value={value} onChange={onChange} />;
+      default:
+        return (
+          <input className={box} value={value} placeholder="Type your answer"
+            spellCheck={!examMode} onChange={(e) => onChange(e.target.value)} />
+        );
+    }
+  })();
+
+  return (
+    <div>
+      <ResourceBar />
+      {field}
+    </div>
+  );
 }
 
 /* ---------- Multiple choice ---------- */
@@ -65,6 +79,7 @@ function LongText({ value, onChange, spellCheck }: { value: string; onChange: (v
       placeholder="Write your response here"
       minHeight="min-h-44"
       className={`${box} leading-relaxed`}
+      extras={<ResourceBar compact />}
     />
   );
 }

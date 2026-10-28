@@ -296,7 +296,7 @@ export default function ReviewPanel({ attempt }: Props) {
           <div key={q.id} className="rounded-xl bg-surface border border-line p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="font-display font-semibold text-ink">Question {q.number}</h2>
+                <h2 className="font-semibold text-ink">Question {q.number}</h2>
                 <div className="mt-1">
                   <CriterionTags subjectGroup={assessment.subject} criteria={q.criteria} />
                 </div>

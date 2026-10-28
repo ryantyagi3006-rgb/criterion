@@ -1,17 +1,15 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { TOOLS } from "@/lib/tools";
 import AnswerInput from "./AnswerInput";
 import RichText from "../RichText";
-import ToolsPanel from "./ToolsPanel";
 import TutorPanel from "./TutorPanel";
 import ThemeToggle from "../ThemeToggle";
 import CriterionTags from "../CriterionTag";
 import StimulusPanel from "../StimulusPanel";
 import MediaPanel from "../MediaPanel";
 import DiagramStrip from "../DiagramStrip";
-import { parseSections, findSection } from "@/lib/sections";
+import { parseSections, findSection, type Section } from "@/lib/sections";
 
 export type WQuestion = {
   id: string; number: string; section: string; criteria: string;
@@ -31,13 +29,53 @@ export type WAttempt = {
   };
 };
 
+type Group = { section: Section | null; label: string; questions: WQuestion[] };
+
+/**
+ * Questions are shown a section at a time, in the order the paper sets them,
+ * so a section's preamble and figures sit above every question they apply to
+ * rather than being repeated or lost between pages.
+ *
+ * A paper with no sections is one group, which is simply the whole paper.
+ */
+function groupQuestions(questions: WQuestion[], sectionsJson: string): Group[] {
+  const sections = parseSections(sectionsJson);
+  const groups: Group[] = [];
+  const index = new Map<string, Group>();
+
+  for (const q of questions) {
+    const key = q.section || "";
+    let group = index.get(key);
+    if (!group) {
+      const section = findSection(sections, key);
+      group = {
+        section: section ?? null,
+        // Falls back to the stored label for papers made before sections
+        // carried their own title.
+        label: section?.title || key || "",
+        questions: [],
+      };
+      index.set(key, group);
+      groups.push(group);
+    }
+    group.questions.push(q);
+  }
+
+  return groups.length ? groups : [{ section: null, label: "", questions: [] }];
+}
+
 export default function Workspace({ attempt }: { attempt: WAttempt }) {
   const router = useRouter();
   const { assessment } = attempt;
   const questions = assessment.questions;
   const examMode = assessment.mode === "EXAM";
 
-  const [idx, setIdx] = useState(0);
+  const groups = useMemo(
+    () => groupQuestions(questions, assessment.sections),
+    [questions, assessment.sections]
+  );
+
+  const [groupIdx, setGroupIdx] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>(() =>
     Object.fromEntries(attempt.answers.map((a) => [a.questionId, a.content]))
   );
@@ -46,13 +84,13 @@ export default function Workspace({ attempt }: { attempt: WAttempt }) {
   );
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [zoom, setZoom] = useState(1);
-  const [showTools, setShowTools] = useState(true);
   const [showTutor, setShowTutor] = useState(false);
+  const [tutorFor, setTutorFor] = useState<string | null>(null);
+  const [showInfo, setShowInfo] = useState(false);
   const [confirmSubmit, setConfirmSubmit] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const q = questions[idx];
-  const qTools = useMemo(() => (JSON.parse(q.tools || "[]") as string[]).filter((t) => TOOLS[t]), [q]);
+  const group = groups[Math.min(groupIdx, groups.length - 1)];
 
   // ---------- autosave (debounced) ----------
   const pending = useRef<Record<string, { content?: string; flagged?: boolean }>>({});
@@ -78,25 +116,31 @@ export default function Workspace({ attempt }: { attempt: WAttempt }) {
     timer.current = setTimeout(flush, 1500);
   }, [flush]);
 
-  // ---------- per-question time tracking ----------
+  // ---------- time on section ----------
+  // Time is attributed to the questions on screen, since a section is worked
+  // as a whole rather than one question at a time.
   const enteredAt = useRef(Date.now());
-  const trackTime = useCallback((questionId: string) => {
+  const trackTime = useCallback((ids: string[]) => {
     const sec = Math.round((Date.now() - enteredAt.current) / 1000);
     enteredAt.current = Date.now();
-    if (sec > 0)
+    if (sec <= 0 || ids.length === 0) return;
+    const each = Math.max(1, Math.round(sec / ids.length));
+    for (const questionId of ids)
       fetch(`/api/attempts/${attempt.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ questionId, addTimeSec: sec }),
+        body: JSON.stringify({ questionId, addTimeSec: each }),
       }).catch(() => {});
   }, [attempt.id]);
 
-  const goTo = useCallback((next: number) => {
-    if (next < 0 || next >= questions.length) return;
-    trackTime(questions[idx].id);
-    setIdx(next);
+  const goToGroup = useCallback((next: number) => {
+    if (next < 0 || next >= groups.length) return;
+    trackTime(groups[groupIdx]?.questions.map((q) => q.id) ?? []);
+    setGroupIdx(next);
     setShowTutor(false);
-  }, [idx, questions, trackTime]);
+    setTutorFor(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [groupIdx, groups, trackTime]);
 
   // ---------- countdown timer ----------
   // Extra time granted by the teacher extends the deadline. It is also what
@@ -111,13 +155,13 @@ export default function Workspace({ attempt }: { attempt: WAttempt }) {
 
   const submit = useCallback(async () => {
     setSubmitting(true);
-    trackTime(questions[idx].id);
+    trackTime(groups[groupIdx]?.questions.map((q) => q.id) ?? []);
     if (timer.current) clearTimeout(timer.current);
     await flush();
     await fetch(`/api/attempts/${attempt.id}/submit`, { method: "POST" });
     router.push(`/attempt/${attempt.id}/results`);
     router.refresh();
-  }, [attempt.id, flush, idx, questions, router, trackTime]);
+  }, [attempt.id, flush, groupIdx, groups, router, trackTime]);
 
   useEffect(() => {
     if (!deadline) return;
@@ -136,33 +180,34 @@ export default function Workspace({ attempt }: { attempt: WAttempt }) {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (!e.altKey) return;
-      if (e.key === "ArrowRight") { e.preventDefault(); goTo(idx + 1); }
-      if (e.key === "ArrowLeft") { e.preventDefault(); goTo(idx - 1); }
-      if (e.key.toLowerCase() === "f") {
-        e.preventDefault();
-        const f = !flags[q.id];
-        setFlags((s) => ({ ...s, [q.id]: f }));
-        queueSave(q.id, { flagged: f });
-      }
+      if (e.key === "ArrowRight") { e.preventDefault(); goToGroup(groupIdx + 1); }
+      if (e.key === "ArrowLeft") { e.preventDefault(); goToGroup(groupIdx - 1); }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [idx, q, flags, goTo, queueSave]);
+  }, [groupIdx, goToGroup]);
 
   const answered = questions.filter((qq) => (answers[qq.id] ?? "").trim() !== "").length;
+  const flagged = questions.filter((qq) => flags[qq.id]).length;
   const mins = remaining !== null ? Math.floor(remaining / 60000) : null;
   const secs = remaining !== null ? Math.floor((remaining % 60000) / 1000) : null;
+
+  function toggleFlag(id: string) {
+    const f = !flags[id];
+    setFlags((s) => ({ ...s, [id]: f }));
+    queueSave(id, { flagged: f });
+  }
 
   return (
     <div className="min-h-screen bg-paper flex flex-col"
       onCopy={examMode ? (e) => e.preventDefault() : undefined}
       onPaste={examMode ? (e) => e.preventDefault() : undefined}>
 
-      {/* Top bar */}
+      {/* Everything the old side column carried now lives here */}
       <header className="sticky top-0 z-40 border-b border-line bg-surface/95 backdrop-blur">
         <div className="px-4 h-14 flex items-center justify-between gap-4">
           <div className="min-w-0">
-            <div className="font-display font-semibold text-sm truncate text-ink">{assessment.title}</div>
+            <div className="font-semibold text-sm truncate text-ink">{assessment.title}</div>
             <div className="text-[11px] text-soft">
               {examMode ? "Exam mode, tutor off" : "Practice mode"} &middot;{" "}
               {saveState === "saving" ? "Saving" : saveState === "saved" ? "All changes saved" : "Autosave on"}
@@ -189,161 +234,193 @@ export default function Workspace({ attempt }: { attempt: WAttempt }) {
             </button>
           </div>
         </div>
-        {/* progress bar */}
-        <div className="h-1 bg-paper">
-          <div className="h-full bg-teal transition-all" style={{ width: `${(answered / questions.length) * 100}%` }} />
-        </div>
-      </header>
 
-      <div className="flex-1 flex overflow-hidden">
-        {/* Question navigator */}
-        <nav className="hidden md:flex flex-col w-52 shrink-0 border-r border-line bg-surface p-3 overflow-y-auto">
-          <div className="microlabel mb-2">
-            {answered} of {questions.length} answered
-          </div>
-          <div className="grid grid-cols-4 gap-1.5">
-            {questions.map((qq, i) => {
-              const has = (answers[qq.id] ?? "").trim() !== "";
+        {/* Section bar: progress, where you are, and the paper's instructions */}
+        <div className="px-4 pb-2 flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-1 overflow-x-auto">
+            {groups.map((g, i) => {
+              const total = g.questions.length;
+              const doneHere = g.questions.filter((qq) => (answers[qq.id] ?? "").trim() !== "").length;
               return (
-                <button key={qq.id} onClick={() => goTo(i)} aria-label={`Question ${qq.number}`}
-                  className={`relative h-9 rounded-lg text-xs font-bold transition-colors ${
-                    i === idx ? "bg-teal text-paper" :
-                    has ? "bg-tealwash text-tealdeep" :
-                    "bg-paper text-soft border border-line"
-                  }`}>
-                  {qq.number}
-                  {flags[qq.id] && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber" />}
+                <button
+                  key={g.label + i}
+                  onClick={() => goToGroup(i)}
+                  aria-current={i === groupIdx ? "step" : undefined}
+                  className={`shrink-0 h-8 px-3 rounded-lg text-xs font-semibold transition-colors ${
+                    i === groupIdx ? "bg-teal text-paper" : "bg-paper text-soft border border-line hover:border-teal"
+                  }`}
+                >
+                  {g.label || `Part ${i + 1}`}
+                  <span className={`ml-1.5 ${i === groupIdx ? "opacity-80" : ""}`}>
+                    {doneHere}/{total}
+                  </span>
                 </button>
               );
             })}
           </div>
-          <div className="mt-4 text-[11px] text-soft space-y-1">
-            <p>Alt with arrows to navigate</p>
-            <p>Alt F to flag</p>
+
+          <div className="ml-auto flex items-center gap-3 text-[11px] text-soft">
+            <span>{answered} of {questions.length} answered</span>
+            {flagged > 0 && <span className="text-amber">{flagged} flagged</span>}
+            {!examMode && (
+              <button
+                onClick={() => { setShowTutor((v) => !v); setTutorFor(null); }}
+                className={`h-7 px-2.5 rounded-lg text-[11px] font-semibold border transition-colors ${
+                  showTutor ? "border-teal bg-tealwash text-tealdeep" : "border-line text-ink hover:border-teal"
+                }`}
+              >
+                Tutor
+              </button>
+            )}
+            <button
+              onClick={() => setShowInfo((v) => !v)}
+              aria-expanded={showInfo}
+              className={`h-7 px-2.5 rounded-lg text-[11px] font-semibold border transition-colors ${
+                showInfo ? "border-teal bg-tealwash text-tealdeep" : "border-line text-ink hover:border-teal"
+              }`}
+            >
+              Instructions
+            </button>
           </div>
-          {assessment.instructions && (
-            <div className="mt-4 text-[11px] text-soft border-t border-line pt-3">
-              <span className="microlabel">Instructions</span>
-              <p className="mt-1 whitespace-pre-wrap leading-relaxed">{assessment.instructions}</p>
+        </div>
+
+        {showInfo && (
+          <div className="px-4 pb-3 text-[11px] text-soft border-t border-line pt-3">
+            {assessment.instructions ? (
+              <p className="whitespace-pre-wrap leading-relaxed max-w-3xl">{assessment.instructions}</p>
+            ) : (
+              <p>No special instructions for this paper.</p>
+            )}
+            <p className="mt-2">Alt with left and right arrows moves between sections.</p>
+          </div>
+        )}
+
+        <div className="h-1 bg-paper">
+          <div className="h-full bg-teal transition-all"
+            style={{ width: `${questions.length ? (answered / questions.length) * 100 : 0}%` }} />
+        </div>
+      </header>
+
+      <main className="flex-1 p-4 sm:p-6" style={{ fontSize: `${zoom}rem` }}>
+        <div className="max-w-3xl mx-auto fade-up" key={groupIdx}>
+          {(group.label || group.section) && (
+            <div className="mb-4">
+              <div className="microlabel mb-1">{group.label || "This part"}</div>
+              {group.section?.instructions.trim() && (
+                <p className="text-sm text-soft leading-relaxed whitespace-pre-wrap">
+                  {group.section.instructions}
+                </p>
+              )}
+              {group.section && <DiagramStrip diagrams={JSON.stringify(group.section.images)} />}
             </div>
           )}
-        </nav>
 
-        {/* Question area */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6" style={{ fontSize: `${zoom}rem` }}>
-          <div className="max-w-3xl mx-auto fade-up" key={q.id}>
-            {(() => {
-              const section = findSection(parseSections(assessment.sections), q.section);
-              if (!section && !q.section) return null;
-              // Falls back to the raw label for assessments made before
-              // sections carried their own instructions.
-              if (!section) return <div className="microlabel mb-2">{q.section}</div>;
-              return (
-                <div className="mb-3">
-                  <div className="microlabel mb-1">{section.title || q.section}</div>
-                  {section.instructions.trim() && (
-                    <p className="text-sm text-soft leading-relaxed whitespace-pre-wrap">
-                      {section.instructions}
-                    </p>
-                  )}
-                  <DiagramStrip diagrams={JSON.stringify(section.images)} />
-                </div>
-              );
-            })()}
-            <div className="rounded-xl bg-surface border border-line p-5 sm:p-6">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="font-display text-lg font-semibold text-ink">
-                    Question {q.number}
-                    <span className="ml-2 text-xs font-sans font-normal text-soft">
-                      {q.marks} mark{q.marks === 1 ? "" : "s"}, about {q.estMinutes} min
-                    </span>
-                  </h2>
-                  <div className="mt-1.5">
-                    <CriterionTags subjectGroup={assessment.subject} criteria={q.criteria} />
+          <div className="space-y-4">
+            {group.questions.map((q) => (
+              <div key={q.id} className="rounded-xl bg-surface border border-line p-5 sm:p-6">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold text-ink">
+                      Question {q.number}
+                      <span className="ml-2 text-xs font-normal text-soft">
+                        {q.marks} mark{q.marks === 1 ? "" : "s"}, about {q.estMinutes} min
+                      </span>
+                    </h2>
+                    <div className="mt-1.5">
+                      <CriterionTags subjectGroup={assessment.subject} criteria={q.criteria} />
+                    </div>
                   </div>
-                </div>
-                <button
-                  onClick={() => { const f = !flags[q.id]; setFlags((s) => ({ ...s, [q.id]: f })); queueSave(q.id, { flagged: f }); }}
-                  className={`shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
-                    flags[q.id] ? "border-amber bg-amberwash text-amber" : "border-line text-soft hover:border-amber"
-                  }`}>
-                  {flags[q.id] ? "Flagged" : "Flag"}
-                </button>
-              </div>
-              <RichText html={q.text} className="mt-4 text-ink leading-relaxed" />
-              <DiagramStrip diagrams={q.diagrams} />
-              <MediaPanel media={q.media} />
-              <StimulusPanel stimulus={q.stimulus} title={q.stimulusTitle} />
-
-              <div className="mt-5 border-t border-line pt-5">
-                <AnswerInput
-                  key={q.id}
-                  question={q}
-                  value={answers[q.id] ?? ""}
-                  examMode={examMode}
-                  onChange={(v) => { setAnswers((s) => ({ ...s, [q.id]: v })); queueSave(q.id, { content: v }); }}
-                />
-              </div>
-            </div>
-
-            {/* nav buttons */}
-            <div className="flex items-center justify-between mt-4">
-              <button onClick={() => goTo(idx - 1)} disabled={idx === 0}
-                className="rounded-lg border border-line px-4 py-2 text-sm font-semibold text-ink disabled:opacity-40 hover:border-soft transition-colors">
-                Previous
-              </button>
-              <div className="md:hidden text-xs text-soft">{idx + 1} / {questions.length}</div>
-              {idx < questions.length - 1 ? (
-                <button onClick={() => goTo(idx + 1)}
-                  className="rounded-lg bg-teal hover:bg-tealdeep text-paper px-4 py-2 text-sm font-semibold transition-colors">
-                  Next
-                </button>
-              ) : (
-                <button onClick={() => setConfirmSubmit(true)}
-                  className="rounded-lg bg-teal hover:bg-tealdeep text-paper px-4 py-2 text-sm font-semibold transition-colors">
-                  Finish and submit
-                </button>
-              )}
-            </div>
-          </div>
-        </main>
-
-        {/* Tools / tutor sidebar */}
-        {(qTools.length > 0 || !examMode) && (
-          <aside className={`hidden lg:flex flex-col shrink-0 border-l border-line bg-surface transition-all ${showTools ? "w-80" : "w-10"}`}>
-            <button onClick={() => setShowTools(!showTools)} className="p-2 text-soft hover:text-ink text-sm self-start" aria-label="Toggle tools panel">
-              {showTools ? ">" : "<"}
-            </button>
-            {showTools && (
-              <div className="flex-1 overflow-y-auto p-3 pt-0 space-y-3">
-                {!examMode && (
-                  <button onClick={() => setShowTutor(!showTutor)}
-                    className={`w-full rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
-                      showTutor ? "bg-teal text-paper" : "bg-tealwash text-tealdeep hover:bg-teal hover:text-paper"
+                  <button
+                    onClick={() => toggleFlag(q.id)}
+                    className={`shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
+                      flags[q.id] ? "border-amber bg-amberwash text-amber" : "border-line text-soft hover:border-amber"
                     }`}>
-                    {showTutor ? "Tutor is open" : "Ask the tutor for a hint"}
+                    {flags[q.id] ? "Flagged" : "Flag"}
                   </button>
+                </div>
+
+                <RichText html={q.text} className="mt-4 text-ink leading-relaxed" />
+                <DiagramStrip diagrams={q.diagrams} />
+                <MediaPanel media={q.media} />
+                <StimulusPanel stimulus={q.stimulus} title={q.stimulusTitle} />
+
+                <div className="mt-5 border-t border-line pt-5">
+                  <AnswerInput
+                    key={q.id}
+                    question={q}
+                    value={answers[q.id] ?? ""}
+                    examMode={examMode}
+                    onChange={(v) => { setAnswers((s) => ({ ...s, [q.id]: v })); queueSave(q.id, { content: v }); }}
+                  />
+                </div>
+
+                {!examMode && (
+                  <div className="mt-3">
+                    <button
+                      onClick={() => setTutorFor(tutorFor === q.id ? null : q.id)}
+                      className="text-xs font-semibold text-tealdeep hover:underline"
+                    >
+                      {tutorFor === q.id ? "Hide the tutor" : "Ask the tutor about this question"}
+                    </button>
+                    {tutorFor === q.id && (
+                      <div className="mt-2">
+                        <TutorPanel questionId={q.id} currentAnswer={answers[q.id] ?? ""} />
+                      </div>
+                    )}
+                  </div>
                 )}
-                {showTutor && !examMode && (
-                  <TutorPanel questionId={q.id} currentAnswer={answers[q.id] ?? ""} />
-                )}
-                <ToolsPanel toolIds={qTools} />
               </div>
+            ))}
+          </div>
+
+          <div className="flex items-center justify-between mt-5 gap-3">
+            <button onClick={() => goToGroup(groupIdx - 1)} disabled={groupIdx === 0}
+              className="rounded-lg border border-line px-4 py-2 text-sm font-semibold text-ink disabled:opacity-40 hover:border-soft transition-colors">
+              Previous section
+            </button>
+            <div className="text-xs text-soft">{groupIdx + 1} of {groups.length}</div>
+            {groupIdx < groups.length - 1 ? (
+              <button onClick={() => goToGroup(groupIdx + 1)}
+                className="rounded-lg bg-teal hover:bg-tealdeep text-paper px-4 py-2 text-sm font-semibold transition-colors">
+                Next section
+              </button>
+            ) : (
+              <button onClick={() => setConfirmSubmit(true)}
+                className="rounded-lg bg-teal hover:bg-tealdeep text-paper px-4 py-2 text-sm font-semibold transition-colors">
+                Finish and submit
+              </button>
             )}
-          </aside>
-        )}
-      </div>
+          </div>
+        </div>
+      </main>
+
+      {/* Tutor, opened from the header, for the section as a whole */}
+      {showTutor && !examMode && group.questions.length > 0 && (
+        <div className="fixed z-40 bottom-4 left-4 w-[min(22rem,calc(100vw-2rem))] rounded-xl border border-line bg-surface shadow-xl">
+          <div className="flex items-center justify-between gap-3 border-b border-line px-3 py-2">
+            <span className="text-sm font-semibold text-ink">Tutor</span>
+            <button onClick={() => setShowTutor(false)} className="text-xs font-semibold text-soft hover:text-ink">
+              Close
+            </button>
+          </div>
+          <div className="p-3">
+            <TutorPanel
+              questionId={group.questions[0].id}
+              currentAnswer={answers[group.questions[0].id] ?? ""}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Submit confirmation */}
       {confirmSubmit && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-ink/40 backdrop-blur-sm p-4">
           <div className="rounded-xl bg-surface border border-line p-6 max-w-sm w-full shadow-xl fade-up">
-            <h3 className="font-display text-xl font-semibold text-ink">Submit this task?</h3>
+            <h3 className="text-xl font-semibold text-ink">Submit this task?</h3>
             <p className="text-sm text-soft mt-2 leading-relaxed">
               You have answered {answered} of {questions.length} questions.
               {answered < questions.length && " Unanswered questions score zero."}
-              {Object.values(flags).some(Boolean) && " You still have flagged questions."}
+              {flagged > 0 && " You still have flagged questions."}
             </p>
             <p className="text-sm text-soft mt-2">
               Submission is final. Your teacher reviews all marks before release.

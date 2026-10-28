@@ -3,12 +3,13 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { aiAvailable } from "@/lib/ai-available";
-import { criterionName, indicativeLevel, parseCriteria, ensureCriterionMarks } from "@/lib/myp";
+import { indicativeLevel, parseCriteria, ensureCriterionMarks } from "@/lib/myp";
 import { effectiveScores } from "@/lib/scores";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import Shell from "@/components/Shell";
 import UploadCard from "@/components/UploadCard";
-import StartButton from "@/components/StartButton";
+import StudentHome, { type UpcomingItem, type SubmissionItem, type SubjectGrades } from "@/components/StudentHome";
+import { type CriterionRow } from "@/components/CriterionBars";
 
 export const dynamic = "force-dynamic";
 
@@ -151,7 +152,8 @@ async function StudentDashboard({ userId, name }: { userId: string; name: string
     db.attempt.findMany({
       where: { studentId: userId },
       select: {
-        id: true, assessmentId: true, status: true, submittedAt: true, totalScore: true,
+        id: true, assessmentId: true, status: true, submittedAt: true,
+        totalScore: true, grade: true,
         assessment: { select: { title: true, subject: true, totalMarks: true } },
         // Only what the criterion analytics need, not the question text,
         // stimulus or images.
@@ -167,11 +169,40 @@ async function StudentDashboard({ userId, name }: { userId: string; name: string
   ]);
 
   const attemptByAssessment = new Map(attempts.map((t) => [t.assessmentId, t]));
-  const upcoming = published.filter((a) => {
-    const t = attemptByAssessment.get(a.id);
-    return !t || t.status === "IN_PROGRESS";
-  });
+
+  const upcoming: UpcomingItem[] = published
+    .filter((a) => {
+      const t = attemptByAssessment.get(a.id);
+      return !t || t.status === "IN_PROGRESS";
+    })
+    .map((a) => ({
+      id: a.id,
+      title: a.title,
+      subject: a.subject,
+      meta: [
+        a.subject,
+        `${a._count.questions} questions`,
+        `${a.totalMarks} marks`,
+        a.durationMinutes ? `${a.durationMinutes} min` : null,
+        a.mode === "EXAM" ? "Exam mode" : "Practice mode, tutor on",
+        `set by ${a.teacher.name}`,
+      ].filter(Boolean).join(" \u00b7 "),
+      // Formatted on the server, so the markup matches on both sides.
+      due: a.dueDate ? formatDate(a.dueDate) : null,
+      resuming: !!attemptByAssessment.get(a.id),
+    }));
+
   const done = attempts.filter((t) => t.status !== "IN_PROGRESS");
+  const submissions: SubmissionItem[] = done.map((t) => ({
+    id: t.id,
+    title: t.assessment.title,
+    subject: t.assessment.subject,
+    submitted: t.submittedAt ? formatDateTime(t.submittedAt) : "recently",
+    status: t.status,
+    totalScore: t.totalScore,
+    totalMarks: t.assessment.totalMarks,
+    grade: t.grade ?? null,
+  }));
 
   // Criterion achievement per subject group, from released results.
   // Each criterion counts only the marks available under it and the marks
@@ -195,120 +226,39 @@ async function StudentDashboard({ userId, name }: { userId: string; name: string
       }
     }
   }
-  const bySubject = new Map<string, { criterion: string; level: number; pct: number }[]>();
+
+  const bySubject = new Map<string, CriterionRow[]>();
   for (const [key, v] of critStats) {
     const [subject, criterion] = key.split("::");
     const rows = bySubject.get(subject) ?? [];
-    rows.push({ criterion, level: indicativeLevel(v.earned, v.max), pct: (v.earned / v.max) * 100 });
+    rows.push({
+      criterion,
+      level: indicativeLevel(v.earned, v.max),
+      earned: v.earned,
+      max: v.max,
+    });
     bySubject.set(subject, rows);
   }
 
+  // The grade a teacher actually awarded, kept per subject. Marks only ever
+  // suggest a level, so nothing here is derived from them.
+  const gradeBySubject = new Map<string, number>();
+  for (const t of done) {
+    if (t.status !== "RELEASED" || t.grade == null) continue;
+    const current = gradeBySubject.get(t.assessment.subject);
+    if (current === undefined || t.grade > current)
+      gradeBySubject.set(t.assessment.subject, t.grade);
+  }
+
+  const grades: SubjectGrades[] = [...bySubject.entries()].map(([subject, rows]) => ({
+    subject,
+    rows,
+    bestGrade: gradeBySubject.get(subject) ?? null,
+  }));
+
   return (
     <Shell name={name} role="STUDENT">
-      <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-8">
-          <section>
-            <p className="microlabel mb-1">Ready when you are</p>
-            <h2 className="font-display text-2xl font-semibold mb-4 text-ink">Open assessments</h2>
-            {upcoming.length === 0 && (
-              <p className="text-sm text-soft rounded-xl border border-dashed border-line p-6 text-center">
-                Nothing open right now. Check back later.
-              </p>
-            )}
-            <div className="space-y-3">
-              {upcoming.map((a) => {
-                const t = attemptByAssessment.get(a.id);
-                return (
-                  <div key={a.id} className="rounded-xl border border-line bg-surface p-4 flex items-center justify-between gap-4">
-                    <div>
-                      <div className="font-semibold text-ink">{a.title}</div>
-                      <div className="text-xs text-soft mt-1">
-                        {a.subject} &middot; {a._count.questions} questions &middot; {a.totalMarks} marks
-                        {a.durationMinutes ? <> &middot; {a.durationMinutes} min</> : null} &middot;{" "}
-                        {a.mode === "EXAM" ? "Exam mode" : "Practice mode, tutor on"} &middot; set by {a.teacher.name}
-                      </div>
-                      {a.dueDate && (
-                        <div className="text-xs text-amber mt-1">Due {formatDate(a.dueDate)}</div>
-                      )}
-                    </div>
-                    <StartButton assessmentId={a.id} resuming={!!t} />
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-
-          <section>
-            <p className="microlabel mb-1">Your record</p>
-            <h2 className="font-display text-2xl font-semibold mb-4 text-ink">Completed</h2>
-            {done.length === 0 && <p className="text-sm text-soft">No submissions yet.</p>}
-            <div className="space-y-3">
-              {done.map((t) => (
-                <Link key={t.id} href={`/attempt/${t.id}/results`}
-                  className="block rounded-xl border border-line bg-surface p-4 hover:border-teal transition-colors">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-semibold text-ink">{t.assessment.title}</div>
-                      <div className="text-xs text-soft mt-1">
-                        Submitted {t.submittedAt ? formatDateTime(t.submittedAt) : "recently"}
-                      </div>
-                    </div>
-                    {t.status === "RELEASED" ? (
-                      <div className="text-right">
-                        <div className="font-display text-2xl font-semibold text-teal">
-                          {t.totalScore ?? 0}<span className="text-sm text-soft">/{t.assessment.totalMarks}</span>
-                        </div>
-                        <div className="text-xs text-soft">View feedback</div>
-                      </div>
-                    ) : (
-                      <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${statusBadge[t.status]}`}>
-                        {t.status === "MARKED" ? "With your teacher" : "Submitted"}
-                      </span>
-                    )}
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </section>
-        </div>
-
-        <aside>
-          <p className="microlabel mb-1">Criteria A to D</p>
-          <h2 className="font-display text-2xl font-semibold mb-4 text-ink">Achievement</h2>
-          {bySubject.size === 0 ? (
-            <p className="text-sm text-soft rounded-xl border border-dashed border-line p-5 text-center">
-              Complete assessments to see your criterion levels here.
-            </p>
-          ) : (
-            <div className="space-y-4">
-              {[...bySubject.entries()].map(([subject, rows]) => (
-                <div key={subject} className="rounded-xl border border-line bg-surface p-4">
-                  <div className="font-semibold text-sm text-ink mb-3">{subject}</div>
-                  <div className="space-y-3">
-                    {rows.sort((a, b) => a.criterion.localeCompare(b.criterion)).map((r) => (
-                      <div key={r.criterion}>
-                        <div className="flex justify-between items-baseline text-xs mb-1">
-                          <span className="text-soft">
-                            <span className="font-bold text-ink">{r.criterion}</span>{" "}
-                            {criterionName(subject, r.criterion)}
-                          </span>
-                          <span className="font-display text-base font-semibold text-teal">{r.level}<span className="text-soft text-xs">/8</span></span>
-                        </div>
-                        <div className="h-1.5 rounded-full bg-paper overflow-hidden">
-                          <div className="h-full rounded-full bg-teal" style={{ width: `${r.pct}%` }} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-[11px] text-soft mt-3">
-                    Indicative levels from marks earned. Final levels are your teacher&apos;s best-fit judgement.
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-        </aside>
-      </div>
+      <StudentHome upcoming={upcoming} submissions={submissions} grades={grades} />
     </Shell>
   );
 }

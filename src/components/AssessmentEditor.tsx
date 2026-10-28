@@ -2,7 +2,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { TOOLS } from "@/lib/tools";
 import { CRITERIA, SUBJECT_GROUP_NAMES, criterionName, parseCriteria, ensureCriterionMarks, criteriaTotal, marksForCriterion } from "@/lib/myp";
 import CriterionTags from "./CriterionTag";
 import RichTextEditor from "./RichTextEditor";
@@ -282,7 +281,6 @@ export default function AssessmentEditor({
                       {q.stimulus.trim() && (
                         <Tag accent>source text, {q.stimulus.trim().split(/\s+/).length} words</Tag>
                       )}
-                      {q.toolsArr.map((t) => TOOLS[t] && <Tag key={t} accent>{TOOLS[t].label}</Tag>)}
                       {stat?.avgPct != null && <Tag accent>class avg {stat.avgPct.toFixed(0)}%</Tag>}
                     </div>
                   </div>
@@ -405,23 +403,10 @@ export default function AssessmentEditor({
                           onChange={(e) => patchQ(q.id, { optionsArr: e.target.value.split("\n") })} />
                       </label>
                     )}
-                    <div className="sm:col-span-2">
-                      <span className="microlabel">Tools available to the student</span>
-                      <div className="flex flex-wrap gap-2 mt-1.5">
-                        {Object.entries(TOOLS).map(([id, t]) => (
-                          <button key={id} type="button"
-                            onClick={() => patchQ(q.id, {
-                              toolsArr: q.toolsArr.includes(id) ? q.toolsArr.filter((x) => x !== id) : [...q.toolsArr, id],
-                            })}
-                            className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium transition-colors ${
-                              q.toolsArr.includes(id)
-                                ? "border-teal bg-tealwash text-tealdeep"
-                                : "border-line text-soft"
-                            }`}>
-                            {t.label}
-                          </button>
-                        ))}
-                      </div>
+                    <div className="sm:col-span-2 text-[11px] text-soft border-l-2 border-line pl-2 leading-relaxed">
+                      Every resource is offered on every question now: the equation editor,
+                      GeoGebra, the calculator, the formula sheet and the rest. There is
+                      nothing to pick here.
                     </div>
                     <label className="microlabel space-y-1 sm:col-span-2">
                       <span>Task-specific clarification, used for marking</span>

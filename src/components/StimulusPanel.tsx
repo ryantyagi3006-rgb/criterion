@@ -44,7 +44,7 @@ export default function StimulusPanel({
           tabIndex={0}
           aria-label={title?.trim() || "Source text"}
         >
-          <p className="text-[15px] leading-[1.75] text-ink whitespace-pre-wrap font-serif">
+          <p className="text-[15px] leading-[1.75] text-ink whitespace-pre-wrap">
             {stimulus}
           </p>
         </div>
